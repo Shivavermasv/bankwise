@@ -1,0 +1,13 @@
+# Ignore node_modules
+**/node_modules
+
+# Ignore build outputs
+/frontend/build
+/backend/target
+
+# Ignore environment and IDE files
+*.log
+.env
+.vscode/
+.idea/
+*.iml

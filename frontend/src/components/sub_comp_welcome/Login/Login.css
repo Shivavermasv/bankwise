@@ -1,0 +1,23 @@
+/* Modal Styling */
+.login-modal {
+    background: rgba(255, 255, 255, 0.9); /* Light transparency */
+    border-radius: 8px;
+    padding: 20px;
+}
+
+/* Form Styling */
+.login-form {
+    margin-top: 10px;
+}
+
+/* Button Styling */
+.login-btn {
+    margin-top: 20px;
+    width: 100%;
+    transition: all 0.3s ease;
+}
+
+.login-btn:hover {
+    background-color: #0056b3;
+    border-color: #004085;
+}

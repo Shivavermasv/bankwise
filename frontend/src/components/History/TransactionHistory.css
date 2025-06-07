@@ -1,0 +1,16 @@
+.transaction-card {
+    border: 1px solid #ddd;
+    border-radius: 0.25rem;
+}
+
+.transaction-card .card-body {
+    padding: 1rem;
+}
+
+.transaction-card .card-title {
+    font-weight: bold;
+}
+
+.transaction-card .card-text {
+    font-size: 0.875rem;
+}

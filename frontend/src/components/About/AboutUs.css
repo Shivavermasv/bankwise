@@ -1,0 +1,44 @@
+.about-us-section {
+    padding: 40px;
+    color: #fff;
+    text-align: center;
+    background: rgba(0, 0, 0, 0.5); /* Translucent overlay */
+}
+
+.about-us-content {
+    max-width: 800px;
+    margin: 0 auto;
+    padding: 20px;
+    backdrop-filter: blur(10px);
+    border-radius: 10px;
+}
+
+.about-us-content h1 {
+    font-size: 36px;
+    margin-bottom: 20px;
+}
+
+.about-us-content p {
+    font-size: 18px;
+    margin-bottom: 20px;
+}
+
+.about-us-content ul {
+    list-style-type: disc;
+    margin-left: 20px;
+    text-align: left;
+}
+
+.about-us-content li {
+    margin-bottom: 10px;
+    font-size: 16px;
+}
+
+.lottie-animation {
+    margin: 20px 0;
+}
+
+a {
+    color: #00f;
+    text-decoration: underline;
+}

@@ -1,0 +1,17 @@
+.container {
+    max-width: 600px;
+    margin: auto;
+}
+
+.loading-animation {
+    text-align: center;
+    margin: 20px 0;
+}
+
+.alert {
+    margin-bottom: 20px;
+}
+
+.form-group {
+    margin-bottom: 20px;
+}
