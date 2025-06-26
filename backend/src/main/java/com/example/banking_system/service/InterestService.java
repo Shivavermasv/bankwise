@@ -33,7 +33,7 @@ public class InterestService {
             BigDecimal interest = BigDecimal.ZERO;
             BigDecimal balance = account.getBalance();
 
-            switch (account.getInterestType()) {
+            switch (9) {
                 case 1:
                     if (balance.compareTo(BigDecimal.valueOf(5000)) > 0) {
                         interest = balance.multiply(BigDecimal.valueOf(0.08));

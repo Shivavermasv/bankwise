@@ -1,9 +1,8 @@
 package com.example.banking_system.config;
 
-import com.example.banking_system.model.Account;
-import com.example.banking_system.model.Client;
-import com.example.banking_system.repository.ClientRepository;
-import com.example.banking_system.service.ClientService;
+import com.example.banking_system.model.User;
+import com.example.banking_system.repository.UserRepository;
+import com.example.banking_system.service.UserService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.SignatureAlgorithm;
@@ -17,7 +16,6 @@ import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.AuthenticationException;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.security.core.userdetails.UserDetails;
@@ -40,14 +38,14 @@ public class JWTAuthenticationFilter extends UsernamePasswordAuthenticationFilte
     public UserDetailsService userDetailsService() {
         return new UserDetailsService() {
             @Autowired
-            private ClientRepository clientRepository;
+            private UserRepository userRepository;
 
             @Override
             public UserDetails loadUserByUsername(String username) throws UsernameNotFoundException {
-                Client client = (Client) clientRepository.findByEmail(username);
+                User User = (User) userRepository.findByEmail(username);
                 return new org.springframework.security.core.userdetails.User(
-                        client.getEmail(),
-                        client.getPassword(),
+                        User.getEmail(),
+                        User.getPassword(),
                         new ArrayList<>() // Add authorities/roles if necessary
                 );
             }

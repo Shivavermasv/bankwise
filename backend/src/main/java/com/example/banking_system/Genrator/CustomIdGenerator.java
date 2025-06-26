@@ -2,12 +2,15 @@ package com.example.banking_system.Genrator;
 
 
 
+import org.springframework.stereotype.Component;
+
 import java.io.Serializable;
 import java.util.Random;
 
+
 public class CustomIdGenerator{
 
-    public Serializable generate() {
+    public static Serializable generate() {
         // Generate a random 12-digit number
         Random random = new Random();
         long randomNumber = (long) (random.nextDouble() * 1_000_000_000_000L); // 12 digits

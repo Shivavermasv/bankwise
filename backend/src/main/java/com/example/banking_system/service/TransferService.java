@@ -1,13 +1,13 @@
 package com.example.banking_system.service;
 
-import com.example.banking_system.model.Client;
+import com.example.banking_system.model.User;
 import com.example.banking_system.model.TransactionHistory;
-import com.example.banking_system.repository.ClientRepository;
+import com.example.banking_system.model.User;
+import com.example.banking_system.repository.UserRepository;
 import com.example.banking_system.repository.TransactionHistoryRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
@@ -26,20 +26,20 @@ public class TransferService {
     private AccountRepository accountRepository;
 
     @Autowired
-    private ClientRepository clientRepository;
+    private UserRepository userRepository;
 
     @Autowired
     private TransactionHistoryRepository transactionHistoryRepository;
 
     @Transactional(isolation = Isolation.REPEATABLE_READ)
-    public void transferMoney(Client to, BigDecimal amount) {
+    public void transferMoney(User to, BigDecimal amount) {
         if (amount.compareTo(BigDecimal.ZERO) <= 0) {
             throw new IllegalArgumentException("Amount must be positive");
         }
 
-        Client userDetails = getLoggedInUser();
-        Account fromAccount = userDetails.getAccount();
-        Account toAccount = to.getAccount();
+        User userDetails = getLoggedInUser();
+        Account fromAccount = null;
+        Account toAccount = null;
 
         if (fromAccount.getBalance().compareTo(amount) < 0) {
             throw new InsufficientFundsException("Insufficient balance");
@@ -75,11 +75,11 @@ public class TransferService {
     }
 
 
-    public Client getLoggedInUser() {
+    public User getLoggedInUser() {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         System.out.println(authentication.getPrincipal() + " " + authentication.getPrincipal().getClass());
         if (authentication.getPrincipal() != null) {
-            return clientRepository.findByNameContaining((String) authentication.getPrincipal()).get();
+            return userRepository.findByNameContaining((String) authentication.getPrincipal()).get();
         }
         return null;
     }

@@ -6,7 +6,7 @@ import java.util.List;
 
 public interface TransactionHistoryRepository extends JpaRepository<TransactionHistory, String> {
     // Fetch transaction history by account ID
-    List<TransactionHistory> findByAccountId(String accountId);
+
 
     @Override
     void deleteById(String s);

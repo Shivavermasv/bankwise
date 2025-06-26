@@ -1,6 +1,6 @@
 package com.example.banking_system.service;
 
-import com.example.banking_system.repository.ClientRepository;
+import com.example.banking_system.repository.UserRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
@@ -11,12 +11,12 @@ import org.springframework.stereotype.Service;
 public class customUserDeatilsService implements UserDetailsService {
 
     @Autowired
-    private ClientRepository clientRepository;
+    private UserRepository userRepository;
 
     @Override
     public UserDetails loadUserByUsername(String username) throws UsernameNotFoundException {
 
-        return clientRepository.findByNameContaining(username)
+        return userRepository.findByNameContaining(username)
                 .orElseThrow(() -> new UsernameNotFoundException("User not found with email: " + username));
     }
 }
