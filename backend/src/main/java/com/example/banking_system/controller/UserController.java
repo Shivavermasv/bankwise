@@ -1,4 +1,4 @@
-package com.example.banking_system.controllers;
+package com.example.banking_system.controller;
 
 import com.example.banking_system.model.Account;
 import com.example.banking_system.model.TransactionHistory;
