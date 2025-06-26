@@ -2,6 +2,7 @@ package com.example.banking_system.repository;
 
 import com.example.banking_system.model.Account;
 
+import com.example.banking_system.model.User;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -16,6 +17,8 @@ public interface AccountRepository extends JpaRepository<Account, Long> {
     // Find an account by its balance
     Optional<Account> findByBalance(BigDecimal balance);
 
+    Optional<Account> findByAccountNumber(String accountNumber);
+    Optional<Account> findAccountByUser(User user);
     // Find accounts with a balance greater than or equal to a specified amount
     List<Account> findByBalanceGreaterThanEqual(BigDecimal balance);
 

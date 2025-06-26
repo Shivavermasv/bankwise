@@ -67,5 +67,9 @@ public class User implements UserDetails {
         return true;
     }
 
+    public VerificationStatus getVerificationStatus() {
+        return verificationStatus;
+    }
+
 }
 

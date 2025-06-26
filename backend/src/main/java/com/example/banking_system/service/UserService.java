@@ -1,5 +1,6 @@
 package com.example.banking_system.service;
 
+import com.example.banking_system.enums.Role;
 import com.example.banking_system.model.Account;
 import com.example.banking_system.model.User;
 import com.example.banking_system.model.UserSearch;
@@ -43,12 +44,22 @@ public class UserService {
         return userRepository.findByEmail(userName).orElseThrow(() -> new UsernameNotFoundException("User not found with email: " + userName));
     }
 
-    public User createUser(User User) {
-        User.setPassword(passwordEncoder.encode(User.getPassword()));
-        if(User.getRole() == null){
+    public User createUser(User user) {
+        if (user.getRole() == null) {
             throw new IllegalArgumentException("Role is mandatory for user creation.");
         }
-        return userRepository.save(User);
+
+        user.setPassword(passwordEncoder.encode(user.getPassword()));
+        User savedUser = userRepository.save(user);
+
+        if (Role.USER.equals(savedUser.getRole())) {
+            Account account = new Account();
+            account.setBalance(BigDecimal.valueOf(5000));
+            account.setUser(savedUser);
+            accountRepository.save(account);
+        }
+
+        return savedUser;
     }
 
     private static <T> List<T> optionalToList(Optional<T> optional) {
