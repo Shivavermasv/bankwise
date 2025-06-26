@@ -5,11 +5,13 @@ import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
 import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
 
 import java.time.LocalDate;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.List;
 
 @Setter
 @Getter
@@ -34,15 +36,15 @@ public class User implements UserDetails {
 
     private boolean isAccountVerified;
 
-
     @Override
     public Collection<? extends GrantedAuthority> getAuthorities() {
-        return Collections.singleton(role);
+        return List.of(new SimpleGrantedAuthority(role.name()));
     }
+
 
     @Override
     public String getUsername() {
-        return this.name;
+        return this.email;
     }
 
     @Override

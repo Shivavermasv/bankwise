@@ -32,9 +32,6 @@ public class UserController {
 
     @PostMapping("/create")
     public ResponseEntity<User> createUser(@RequestBody User User) {
-        // Initialize account with a balance of 5000
-        //User.setAccount(new Account());
-        User.setPassword(User.getPassword()); // Ensure you have access to the password encoder bean
         User createdUser = UserService.createUser(User);
         return ResponseEntity.ok(createdUser);
     }

@@ -10,6 +10,7 @@ import com.example.banking_system.repository.TransactionHistoryRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -26,7 +27,7 @@ public class UserService {
     private TransactionHistoryRepository transactionHistoryRepository;
 
     @Autowired
-    private UserRepository UserRepository;
+    private UserRepository userRepository;
 
     @Autowired
     private AccountRepository accountRepository;
@@ -35,27 +36,19 @@ public class UserService {
     private PasswordEncoder passwordEncoder;
 
     public List<User> getUser() {
-        return UserRepository.findAll();
+        return userRepository.findAll();
     }
 
-    public User getUser(String UserName){
-        User User = null;
-        try{
-            User = UserRepository.findByNameContaining(UserName).get();
-        }
-        catch (Exception ignored){
-        }
-        return User;
+    public User getUser(String userName){
+        return userRepository.findByEmail(userName).orElseThrow(() -> new UsernameNotFoundException("User not found with email: " + userName));
     }
 
     public User createUser(User User) {
         User.setPassword(passwordEncoder.encode(User.getPassword()));
-//        Account account = User.getAccount();
-//        if (account != null) {
-//            account.setAccountHolderName(User.getName());
-//            accountRepository.save(account);
-//        }
-        return UserRepository.save(User);
+        if(User.getRole() == null){
+            throw new IllegalArgumentException("Role is mandatory for user creation.");
+        }
+        return userRepository.save(User);
     }
 
     private static <T> List<T> optionalToList(Optional<T> optional) {
@@ -65,16 +58,16 @@ public class UserService {
     public List<UserSearch> searchUsers(String name, String phone, String email) {
         List<User> res = new ArrayList<>();
         if (name != null && !name.isEmpty()) {
-            res = optionalToList(UserRepository.findByNameContaining(name));
+            res = optionalToList(userRepository.findByNameContaining(name));
         }
         else if (phone != null && !phone.isEmpty()) {
-            res.addAll(UserRepository.findByPhone(phone));
+            res.addAll(userRepository.findByPhone(phone));
         }
         else if (email != null && !email.isEmpty()) {
-            res.addAll(UserRepository.findByEmail(email));
+            //res.addAll(userRepository.findByEmail(email));
         }
         else{
-            res = UserRepository.findAllUsers();
+            res = userRepository.findAllUsers();
         }
         return mapToTargetClassList(res);
     }
@@ -107,14 +100,14 @@ public class UserService {
 
     @Transactional
     public User updateUser(String UserId, User User) {
-        Optional<User> optionalUser = UserRepository.findById(UserId);
+        Optional<User> optionalUser = userRepository.findById(UserId);
         if (optionalUser.isPresent()) {
             User existingUser = optionalUser.get();
             existingUser.setName(User.getName());
             existingUser.setDateOfBirth(User.getDateOfBirth());
             existingUser.setPhone(User.getPhone());
             existingUser.setEmail(User.getEmail());
-            return UserRepository.save(existingUser);
+            return userRepository.save(existingUser);
         } else {
             throw new RuntimeException("User not found");
         }
@@ -122,7 +115,7 @@ public class UserService {
 
     @Transactional
     public String deleteUser(String pass) {
-        if (!UserRepository.existsById(getLoggedInUser().getName()) ) {
+        if (!userRepository.existsById(getLoggedInUser().getName()) ) {
             throw new RuntimeException("User not found");
         }
         User User = getLoggedInUser();
@@ -130,7 +123,7 @@ public class UserService {
             return "Wrong password";
         }
         //transactionHistoryRepository.deleteById(User.getAccount().getId());
-        UserRepository.deleteById(User.getName());
+        userRepository.deleteById(User.getName());
         return "SUCCESSFULLY DELETED";
     }
 
@@ -139,7 +132,7 @@ public class UserService {
     }
 
     private User updateUserDetail(String UserId, String field, String newValue, String oldValue) {
-        Optional<User> optionalUser = UserRepository.findById(UserId);
+        Optional<User> optionalUser = userRepository.findById(UserId);
         if (optionalUser.isPresent()) {
             User User = optionalUser.get();
             if (field.equals("phone")) {
@@ -155,7 +148,7 @@ public class UserService {
                     throw new RuntimeException("Email does not match");
                 }
             }
-            return UserRepository.save(User);
+            return userRepository.save(User);
         } else {
             throw new RuntimeException("User not found");
         }
@@ -201,8 +194,8 @@ public class UserService {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         System.out.println(authentication.getPrincipal() + " " + authentication.getPrincipal().getClass());
         if (authentication.getPrincipal() != null) {
-            assert UserRepository != null;
-            return UserRepository.findByNameContaining((String) authentication.getPrincipal()).get();
+            assert userRepository != null;
+            return userRepository.findByNameContaining((String) authentication.getPrincipal()).get();
         }
         return null;
     }
