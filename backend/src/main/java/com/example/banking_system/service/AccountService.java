@@ -1,6 +1,7 @@
 package com.example.banking_system.service;
 
 import com.example.banking_system.dto.KycDetailsRequestDto;
+import com.example.banking_system.enums.VerificationStatus;
 import com.example.banking_system.model.Account;
 import com.example.banking_system.model.KycDetails;
 import com.example.banking_system.repository.AccountRepository;
@@ -18,7 +19,7 @@ import java.time.LocalDateTime;
 import java.util.Objects;
 
 @Service
-public class KycDetailsService {
+public class AccountService {
 
     @Autowired
     private AccountRepository accountRepository;
@@ -74,5 +75,13 @@ public class KycDetailsService {
         }
         document.close();
         return byteArrayOutputStream.toByteArray();
+    }
+
+    public boolean updateAccountStatus(String accountNumber, VerificationStatus verificationStatus) throws Exception{
+        Account account = accountRepository.findByAccountNumber(accountNumber)
+                .orElseThrow(()->new RuntimeException("Account not found"));
+        account.setVerificationStatus(verificationStatus);
+        accountRepository.save(account);
+        return true;
     }
 }

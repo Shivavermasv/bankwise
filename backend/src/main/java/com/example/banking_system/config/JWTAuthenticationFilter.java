@@ -19,6 +19,7 @@ import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.AuthenticationException;
+import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 
@@ -26,7 +27,9 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.Date;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 public class JWTAuthenticationFilter extends org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter {
 
@@ -62,8 +65,14 @@ public class JWTAuthenticationFilter extends org.springframework.security.web.au
 
 
 
+        List<String> roles = userDetails.getAuthorities()
+                .stream()
+                .map(GrantedAuthority::getAuthority)
+                .collect(Collectors.toList());
+
         String token = Jwts.builder()
                 .setSubject(userDetails.getUsername())
+                .claim("roles", roles) // <--- Add this line
                 .setExpiration(new Date(System.currentTimeMillis() + SecurityConstants.EXPIRATION_TIME))
                 .signWith(SignatureAlgorithm.HS512, SecurityConstants.SECRET.getBytes(StandardCharsets.UTF_8))
                 .compact();
@@ -76,7 +85,7 @@ public class JWTAuthenticationFilter extends org.springframework.security.web.au
             Account account = accountRepository.findAccountByUser(user)
                     .orElseThrow(()->new UsernameNotFoundException("User not found"));
             responseBody.put("Account Number", account.getAccountNumber());
-            responseBody.put("verificationStatus", user.getVerificationStatus());
+            responseBody.put("verificationStatus", account.getVerificationStatus());
         }
         response.setContentType("application/json");
         new ObjectMapper().writeValue(response.getOutputStream(), responseBody);

@@ -4,6 +4,7 @@ import java.math.BigDecimal;
 
 import com.example.banking_system.Genrator.CustomIdGenerator;
 import com.example.banking_system.enums.AccountType;
+import com.example.banking_system.enums.VerificationStatus;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
@@ -30,6 +31,9 @@ public class Account {
     // Default balance set to 5000
     private BigDecimal balance = BigDecimal.valueOf(5000);
 
+    @Enumerated(EnumType.STRING)
+    private VerificationStatus verificationStatus = VerificationStatus.PENDING;
+
 
     // Default interestType set to 1
     private double interestRate;
@@ -45,4 +49,5 @@ public class Account {
     @ManyToOne
     @JoinColumn(name = "user_id")
     private User user;
+
 }
