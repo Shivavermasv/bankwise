@@ -1,10 +1,9 @@
 package com.example.banking_system.config;
 
 import com.example.banking_system.enums.Role;
-import com.example.banking_system.model.Account;
-import com.example.banking_system.model.User;
+import com.example.banking_system.entity.Account;
+import com.example.banking_system.entity.User;
 import com.example.banking_system.repository.AccountRepository;
-import com.example.banking_system.repository.UserRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.SignatureAlgorithm;
@@ -14,7 +13,6 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.Getter;
 import lombok.Setter;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;

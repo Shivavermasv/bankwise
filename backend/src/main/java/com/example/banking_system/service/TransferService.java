@@ -1,8 +1,7 @@
 package com.example.banking_system.service;
 
-import com.example.banking_system.model.User;
-import com.example.banking_system.model.TransactionHistory;
-import com.example.banking_system.model.User;
+import com.example.banking_system.entity.User;
+import com.example.banking_system.entity.TransactionHistory;
 import com.example.banking_system.repository.UserRepository;
 import com.example.banking_system.repository.TransactionHistoryRepository;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -13,7 +12,7 @@ import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.example.banking_system.exception.InsufficientFundsException;
-import com.example.banking_system.model.Account;
+import com.example.banking_system.entity.Account;
 import com.example.banking_system.repository.AccountRepository;
 
 import java.math.BigDecimal;

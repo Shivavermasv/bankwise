@@ -2,8 +2,8 @@ package com.example.banking_system.service;
 
 import com.example.banking_system.dto.KycDetailsRequestDto;
 import com.example.banking_system.enums.VerificationStatus;
-import com.example.banking_system.model.Account;
-import com.example.banking_system.model.KycDetails;
+import com.example.banking_system.entity.Account;
+import com.example.banking_system.entity.KycDetails;
 import com.example.banking_system.repository.AccountRepository;
 import com.example.banking_system.repository.KycDetailsRepository;
 import com.lowagie.text.Document;

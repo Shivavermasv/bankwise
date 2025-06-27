@@ -1,10 +1,10 @@
 package com.example.banking_system.service;
 
 import com.example.banking_system.enums.Role;
-import com.example.banking_system.model.Account;
-import com.example.banking_system.model.User;
-import com.example.banking_system.model.UserSearch;
-import com.example.banking_system.model.TransactionHistory;
+import com.example.banking_system.entity.Account;
+import com.example.banking_system.entity.User;
+import com.example.banking_system.entity.UserSearch;
+import com.example.banking_system.entity.TransactionHistory;
 import com.example.banking_system.repository.AccountRepository;
 import com.example.banking_system.repository.UserRepository;
 import com.example.banking_system.repository.TransactionHistoryRepository;
@@ -19,7 +19,6 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.*;
-import java.util.stream.Collectors;
 
 
 @Service
@@ -227,10 +226,5 @@ public class UserService {
         toTransaction.setDescription("Deposited to " + account.getId());
         transactionHistoryRepository.save(toTransaction);
         return "DEPOSITED SUCCESSFULLY";
-    }
-
-    public Account getAccount() {
-       // return getLoggedInUser().getAccount();
-        return null;
     }
 }

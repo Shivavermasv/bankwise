@@ -1,7 +1,6 @@
-package com.example.banking_system.model;
+package com.example.banking_system.entity;
 
 import com.example.banking_system.enums.Role;
-import com.example.banking_system.enums.VerificationStatus;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
@@ -11,7 +10,6 @@ import org.springframework.security.core.userdetails.UserDetails;
 
 import java.time.LocalDate;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.List;
 
 @Setter
