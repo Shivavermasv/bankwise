@@ -1,5 +1,7 @@
 package com.example.banking_system.config;
 
+import com.example.banking_system.dto.LoginResponseAdminManagerDto;
+import com.example.banking_system.dto.LoginResponseUserDto;
 import com.example.banking_system.enums.Role;
 import com.example.banking_system.entity.Account;
 import com.example.banking_system.entity.User;
@@ -70,23 +72,36 @@ public class JWTAuthenticationFilter extends org.springframework.security.web.au
 
         String token = Jwts.builder()
                 .setSubject(userDetails.getUsername())
-                .claim("roles", roles) // <--- Add this line
+                .claim("roles", roles)
                 .setExpiration(new Date(System.currentTimeMillis() + SecurityConstants.EXPIRATION_TIME))
                 .signWith(SignatureAlgorithm.HS512, SecurityConstants.SECRET.getBytes(StandardCharsets.UTF_8))
                 .compact();
 
         response.addHeader(SecurityConstants.HEADER_STRING, SecurityConstants.TOKEN_PREFIX + token);
 
-        Map<String, Object> responseBody = new HashMap<>();
-        responseBody.put("role",  user.getRole());
         if(user.getRole().equals(Role.USER)){
             Account account = accountRepository.findAccountByUser(user)
                     .orElseThrow(()->new UsernameNotFoundException("User not found"));
-            responseBody.put("Account Number", account.getAccountNumber());
-            responseBody.put("verificationStatus", account.getVerificationStatus());
+            response.setContentType("application/json");
+            new ObjectMapper().writeValue(response.getOutputStream(),
+                    LoginResponseUserDto.builder()
+                    .username(user.getName())
+                            .AccountNumber(account.getAccountNumber())
+                            .role(user.getRole())
+                            .verificationStatus(account.getVerificationStatus())
+                            .balance(account.getBalance())
+                            .build()
+                    );
         }
-        response.setContentType("application/json");
-        new ObjectMapper().writeValue(response.getOutputStream(), responseBody);
+        else{
+            response.setContentType("application/json");
+            new ObjectMapper().writeValue(response.getOutputStream(),
+                    LoginResponseAdminManagerDto.builder()
+                    .username(user.getName())
+                            .role(user.getRole())
+                            .build()
+                    );
+        }
     }
 
     // DTO for login credentials
