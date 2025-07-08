@@ -2,8 +2,7 @@ package com.example.banking_system.entity;
 
 import com.example.banking_system.enums.Role;
 import jakarta.persistence.*;
-import lombok.Getter;
-import lombok.Setter;
+import lombok.*;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
@@ -15,6 +14,9 @@ import java.util.List;
 @Setter
 @Getter
 @Entity(name = "users")
+@Builder
+@AllArgsConstructor
+@NoArgsConstructor
 public class User implements UserDetails {
 
     @Id
@@ -32,6 +34,8 @@ public class User implements UserDetails {
 
     @Enumerated(EnumType.STRING)
     private Role role;
+
+    private String address;
 
     @Override
     public Collection<? extends GrantedAuthority> getAuthorities() {

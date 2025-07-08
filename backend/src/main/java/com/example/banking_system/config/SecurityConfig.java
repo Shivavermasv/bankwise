@@ -2,6 +2,7 @@ package com.example.banking_system.config;
 
 import com.example.banking_system.repository.AccountRepository;
 import com.example.banking_system.service.CustomUserDetailsService;
+import com.example.banking_system.service.OtpService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -25,6 +26,10 @@ public class SecurityConfig {
 
     @Autowired
     private AccountRepository accountRepository;
+
+    @Autowired
+    private OtpService otpService;
+
 
     public SecurityConfig(CustomUserDetailsService userDetailsService) {
         this.userDetailsService = userDetailsService;
@@ -50,7 +55,7 @@ public class SecurityConfig {
 
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http, AuthenticationManager authenticationManager) throws Exception {
-        JWTAuthenticationFilter jwtAuthenticationFilter = new JWTAuthenticationFilter(authenticationManager, accountRepository);
+        JWTAuthenticationFilter jwtAuthenticationFilter = new JWTAuthenticationFilter(authenticationManager, accountRepository, otpService);
         jwtAuthenticationFilter.setFilterProcessesUrl("/api/login");
 
         http
@@ -61,7 +66,11 @@ public class SecurityConfig {
                                 "/api/create",
                                 "/v3/api-docs/**",
                                 "/swagger-ui/**",
-                                "/swagger-ui.html"
+                                "/swagger-ui.html",
+                                "/ws/**",
+                                "/topic/notifications/**",
+                                "/app/**",
+                                "/api/verify-otp"
                                 ).permitAll()
                         .anyRequest().authenticated()
                 )

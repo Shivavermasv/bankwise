@@ -17,6 +17,7 @@ import java.math.BigDecimal;
 @NoArgsConstructor
 public class LoginResponseUserDto {
     private String username;
+    private String email;
     private String AccountNumber;
 
     @Enumerated(EnumType.STRING)

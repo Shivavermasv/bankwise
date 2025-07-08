@@ -5,6 +5,7 @@ import jakarta.mail.util.ByteArrayDataSource;
 import lombok.RequiredArgsConstructor;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.MimeMessageHelper;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -12,6 +13,7 @@ import org.springframework.stereotype.Service;
 public class EmailService {
     private final JavaMailSender mailSender;
 
+    @Async
     public void sendTransactionHistoryPdf(String toEmail, byte[] pdfBytes) throws Exception{
         MimeMessage mimeMessage = mailSender.createMimeMessage();
         MimeMessageHelper mimeMessageHelper = new MimeMessageHelper(mimeMessage, true);
@@ -22,5 +24,19 @@ public class EmailService {
         mimeMessageHelper.addAttachment("TransactionHistory.Pdf",
                 new ByteArrayDataSource(pdfBytes,"application/pdf"));
         mailSender.send(mimeMessage);
+    }
+
+    @Async
+    public void sendEmail(String toEmail, String subject, String text) {
+        MimeMessage mimeMessage = mailSender.createMimeMessage();
+        try {
+            MimeMessageHelper mimeMessageHelper = new MimeMessageHelper(mimeMessage, false);
+            mimeMessageHelper.setTo(toEmail);
+            mimeMessageHelper.setSubject(subject);
+            mimeMessageHelper.setText(text);
+            mailSender.send(mimeMessage);
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to send email", e);
+        }
     }
 }

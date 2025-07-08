@@ -43,6 +43,9 @@ import java.util.stream.Collectors;
 public class TransactionService {
 
     @Autowired
+    private NotificationService notificationService;
+
+    @Autowired
     private TransactionRepository transactionRepository;
 
     @Autowired
@@ -69,6 +72,12 @@ public class TransactionService {
             accountRepository.save(fromAccount);
             accountRepository.save(toAccount);
             transactionStatus = TransactionStatus.SUCCESS;
+            notificationService.sendNotification(fromAccount.getUser().getEmail(),
+                    "You have successfully transferred " + transferRequestDto.getAmount() +
+                            " to account " + toAccount.getAccountNumber());
+            notificationService.sendNotification(toAccount.getUser().getEmail(),
+                    "You have received " + transferRequestDto.getAmount() +
+                            " from account " + fromAccount.getAccountNumber());
         } else {
             transactionStatus = TransactionStatus.FAILED;
         }

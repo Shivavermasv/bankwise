@@ -1,13 +1,13 @@
 package com.example.banking_system.entity;
 
-import java.math.BigDecimal;
-
 import com.example.banking_system.Genrator.CustomIdGenerator;
 import com.example.banking_system.enums.AccountType;
 import com.example.banking_system.enums.VerificationStatus;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
+
+import java.math.BigDecimal;
 
 
 @Setter
@@ -50,4 +50,7 @@ public class Account {
     @JoinColumn(name = "user_id")
     private User user;
 
+    public void setSuspended() {
+        this.verificationStatus = VerificationStatus.SUSPENDED;
+    }
 }

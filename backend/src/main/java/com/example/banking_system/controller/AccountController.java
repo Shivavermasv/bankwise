@@ -5,7 +5,7 @@ import com.example.banking_system.dto.KycDetailsRequestDto;
 import com.example.banking_system.enums.VerificationStatus;
 import com.example.banking_system.service.AccountService;
 import com.example.banking_system.service.DepositService;
-import org.springframework.beans.factory.annotation.Autowired;
+import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -17,21 +17,16 @@ import java.util.Map;
 
 @RestController
 @RequestMapping("/api/account")
+@RequiredArgsConstructor
 public class AccountController {
 
-    @Autowired
-    private AccountService accountService;
+    private final AccountService accountService;
+    private final DepositService depositService;
 
-    @Autowired
-    private DepositService depositService;
-
+    @PreAuthorize("hasRole('USER')")
     @PostMapping("/submit")
-    public ResponseEntity<byte[]> submitKyc(@ModelAttribute KycDetailsRequestDto kycDetailsRequestDto)
-            throws Exception{
+    public ResponseEntity<byte[]> submitKyc(@ModelAttribute KycDetailsRequestDto kycDetailsRequestDto){
         byte[] pdf = accountService.generatePdfAndSaveKycDetails(kycDetailsRequestDto);
-        if(pdf == null){
-            return new ResponseEntity<>(HttpStatus.BAD_REQUEST);
-        }
         return ResponseEntity.ok()
                 .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=kyc.pdf")
                 .contentType(MediaType.APPLICATION_PDF)
@@ -41,7 +36,7 @@ public class AccountController {
     @PreAuthorize("hasRole('ADMIN') or hasRole('MANAGER')")
     @PatchMapping("/updateAccountStatus/{accountNumber}")
     public ResponseEntity<Object> updateAccountStatus
-            (@PathVariable String accountNumber, @RequestBody Map<String, String> request) throws Exception {
+            (@PathVariable String accountNumber, @RequestBody Map<String, String> request) {
         String status = request.get("status").toUpperCase();
         try {
             VerificationStatus.valueOf(status);
@@ -77,7 +72,11 @@ public class AccountController {
         return ResponseEntity.ok(depositService.createDepositRequest(depositRequestDto));
     }
 
-
-
+    @GetMapping("interestRate")
+    @PreAuthorize("hasRoles('ADMIN', 'MANAGER')")
+    public ResponseEntity<Object> modifyInterestRate(
+            @RequestParam String accountNumber, @RequestParam double newInterestRate) throws Exception {
+        return ResponseEntity.ok(accountService.changeAccountInterestRate(accountNumber, newInterestRate));
+    }
 
 }

@@ -12,6 +12,7 @@ import lombok.*;
 @AllArgsConstructor
 public class LoginResponseAdminManagerDto {
     private String username;
+    private String email;
 
     @Enumerated(EnumType.STRING)
     private Role role;

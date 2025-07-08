@@ -1,9 +1,9 @@
 package com.example.banking_system.repository;
 
+import com.example.banking_system.entity.User;
+import com.example.banking_system.enums.Role;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
-
-import com.example.banking_system.entity.User;
 import org.springframework.stereotype.Repository;
 
 import java.time.LocalDate;
@@ -40,6 +40,8 @@ public interface UserRepository extends JpaRepository<User, String> {
      * @return List of Users with the specified email.
      */
     Optional<User> findByEmail(String email);
+
+    List<User> findByRole(Role role);
 
     /**
      * Finds all Users.

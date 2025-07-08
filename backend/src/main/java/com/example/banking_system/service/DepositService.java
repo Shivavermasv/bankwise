@@ -5,12 +5,15 @@ import com.example.banking_system.dto.DepositResponseDto;
 import com.example.banking_system.entity.Account;
 import com.example.banking_system.entity.DepositRequest;
 import com.example.banking_system.entity.Transaction;
+import com.example.banking_system.entity.User;
 import com.example.banking_system.enums.DepositStatus;
+import com.example.banking_system.enums.Role;
 import com.example.banking_system.enums.TransactionStatus;
 import com.example.banking_system.enums.TransactionType;
 import com.example.banking_system.repository.AccountRepository;
 import com.example.banking_system.repository.DepositRepository;
 import com.example.banking_system.repository.TransactionRepository;
+import com.example.banking_system.repository.UserRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -31,6 +34,12 @@ public class DepositService {
     @Autowired
     private TransactionRepository transactionRepository;
 
+    @Autowired
+    private NotificationService notificationService;
+
+    @Autowired
+    private UserRepository userRepository;
+
     public String createDepositRequest(DepositRequestDto depositRequestDto) {
         Account account = accountRepository.findByAccountNumber(depositRequestDto.getAccountNumber())
                 .orElseThrow(()-> new RuntimeException("Account not found"));
@@ -42,6 +51,14 @@ public class DepositService {
                 .depositDate(LocalDateTime.now())
                 .build();
         depositRepository.save(depositRequest);
+        // Notify the user about the deposit request
+        notificationService.sendNotification(account.getUser().getEmail(),
+                "Your deposit request has been created successfully for account: " + depositRequestDto.getAccountNumber());
+
+        for(User user : userRepository.findByRole(Role.ADMIN)){
+            notificationService.sendNotification(user.getEmail(),
+                    "A new deposit request has been created for account: " + depositRequestDto.getAccountNumber());
+        }
 
         return "DepositRequest created";
     }
@@ -64,6 +81,9 @@ public class DepositService {
                     .amount(BigDecimal.valueOf(request.getAmount())).build();
             transactionRepository.save(transaction);
             depositRepository.save(request);
+            notificationService.sendNotification(account.getUser().getEmail(),
+                    "Your deposit request has been approved and the amount has been credited " +
+                            "to your account: " + account.getAccountNumber());
         } else if (request.getStatus().equals(DepositStatus.REJECTED)) {
             throw new RuntimeException("Deposit request has been rejected");
         } else{
@@ -79,6 +99,8 @@ public class DepositService {
         if(request.getStatus().equals(DepositStatus.PENDING)){
             request.setStatus(DepositStatus.REJECTED);
             depositRepository.save(request);
+            notificationService.sendNotification(request.getAccount().getUser().getEmail(),
+                    "Your deposit request has been rejected for account: " + request.getAccount().getAccountNumber());
         } else if (request.getStatus().equals(DepositStatus.REJECTED)) {
             throw new RuntimeException("Deposit request has already been rejected");
         } else{

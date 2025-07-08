@@ -1,8 +1,8 @@
 package com.example.banking_system.enums;
 
-public enum VerificationStatus {
+public enum LoanStatus {
     PENDING,
-    VERIFIED,
+    APPROVED,
     REJECTED,
-    SUSPENDED, DISABLED
+    CLOSED
 }
