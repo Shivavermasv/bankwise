@@ -47,6 +47,9 @@ public class SecurityConfig {
     @Value("${bankwise.cors.allowed-origins:http://localhost:5173,http://localhost:8091}")
     private String allowedOrigins;
 
+    @Value("${JWT_SECRET:bankwise_super_secret_key_change_me_please_64_chars_min_1234567890}")
+    private String jwtSecret;
+
 
     public SecurityConfig(CustomUserDetailsService userDetailsService) {
         this.userDetailsService = userDetailsService;
@@ -122,7 +125,11 @@ public class SecurityConfig {
 
     @Bean
     public JwtDecoder jwtDecoder() {
-        SecretKey key = new SecretKeySpec(SecurityConstants.SECRET.getBytes(StandardCharsets.UTF_8), "HmacSHA512");
+        // Use injected secret to avoid timing issues with static field
+        String secret = (jwtSecret != null && jwtSecret.length() >= 64) 
+            ? jwtSecret 
+            : SecurityConstants.SECRET;
+        SecretKey key = new SecretKeySpec(secret.getBytes(StandardCharsets.UTF_8), "HmacSHA512");
         return NimbusJwtDecoder.withSecretKey(key)
                 .macAlgorithm(MacAlgorithm.HS512)
                 .build();
@@ -132,6 +139,7 @@ public class SecurityConfig {
     public JwtAuthenticationConverter jwtAuthenticationConverter() {
         JwtGrantedAuthoritiesConverter authoritiesConverter = new JwtGrantedAuthoritiesConverter();
         authoritiesConverter.setAuthoritiesClaimName("roles");
+        // JWT already contains ROLE_ prefix, so don't add another one
         authoritiesConverter.setAuthorityPrefix("");
 
         JwtAuthenticationConverter converter = new JwtAuthenticationConverter();
