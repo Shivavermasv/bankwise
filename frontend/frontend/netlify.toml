@@ -62,14 +62,14 @@
 [context.production]
   command = "npm run build"
   [context.production.environment]
-    VITE_API_BASE_URL = "https://bankwise-api.onrender.com"
+    VITE_API_BASE_URL = "https://bankwise-cqci.onrender.com"
 
 [context.deploy-preview]
   command = "npm run build"
   [context.deploy-preview.environment]
-    VITE_API_BASE_URL = "https://bankwise-api.onrender.com"
+    VITE_API_BASE_URL = "https://bankwise-cqci.onrender.com"
 
 [context.branch-deploy]
   command = "npm run build"
   [context.branch-deploy.environment]
-    VITE_API_BASE_URL = "https://bankwise-api.onrender.com"
+    VITE_API_BASE_URL = "https://bankwise-cqci.onrender.com"
