@@ -22,3 +22,7 @@ public class TransactionResponseDto {
     private TransactionStatus status;
     private TransactionType type;
 }
+
+
+
+

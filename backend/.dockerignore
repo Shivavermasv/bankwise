@@ -1,0 +1,33 @@
+# Git
+.git
+.gitignore
+
+# IDE
+.idea
+*.iml
+.vscode
+*.swp
+*.swo
+
+# Build outputs
+target/
+!target/*.jar
+
+# Logs
+*.log
+logs/
+
+# Environment files (secrets)
+.env
+*.env
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Documentation
+*.md
+!README.md
+
+# Test files (not needed in production image)
+src/test/

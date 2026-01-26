@@ -13,4 +13,14 @@ public interface DepositRepository extends JpaRepository<DepositRequest,Long> {
     @Query("SELECT d from DepositRequest d WHERE d.status= :status")
     List<DepositRequest> findByStatus(@Param("status") DepositStatus status);
 
+    long countByStatus(DepositStatus status);
+
+    @Query("select coalesce(sum(d.amount),0) from DepositRequest d where d.status = 'DEPOSITED'")
+    Double totalApprovedDepositAmount();
+
+    long deleteByAccount_AccountNumber(String accountNumber);
 }
+
+
+
+

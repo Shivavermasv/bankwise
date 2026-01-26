@@ -23,5 +23,18 @@ public class LoanResponseDto {
     private LocalDate maturityDate;
     private String reason;
     private String adminRemark;
+    
+    // Payment progress fields
+    private int emisPaid;
+    private int totalEmis;
+    private BigDecimal emiAmount;
+    private BigDecimal totalAmountPaid;
+    private BigDecimal totalOutstanding;
+    private double paidPercentage;
+    private String paymentStatus; // "NOT_STARTED", "IN_PROGRESS", "FULLY_PAID"
 }
+
+
+
+
 

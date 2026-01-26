@@ -5,6 +5,7 @@ import com.example.banking_system.entity.Notification;
 import com.example.banking_system.repository.NotificationRepository;
 import com.example.banking_system.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 
@@ -13,6 +14,7 @@ import java.util.List;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class NotificationService {
 
     private final NotificationRepository notificationRepository;
@@ -34,7 +36,7 @@ public class NotificationService {
         notificationRepository.save(notification);
         messagingTemplate.convertAndSend("/topic/notifications/" +
                 userEmail, mapToNotificationResponse(notification));
-        System.out.println("Notification sent to account: " + userEmail);
+        log.info("Notification sent to userEmail={}", userEmail);
     }
 
     private NotificationResponse mapToNotificationResponse(Notification notification) {
@@ -49,7 +51,10 @@ public class NotificationService {
     public void markNotificationAsSeen(Long notificationId) {
         var notification = notificationRepository.findById(notificationId)
                 .orElseThrow(() -> new IllegalArgumentException("Notification not found"));
-        notificationRepository.delete(notification);
+        if (!notification.isSeen()) {
+            notification.setSeen(true);
+            notificationRepository.save(notification);
+        }
     }
 
     public List<NotificationResponse> getNotifications(String userEmail) {
@@ -62,3 +67,7 @@ public class NotificationService {
                 .toList();
     }
 }
+
+
+
+

@@ -50,3 +50,7 @@ public interface UserRepository extends JpaRepository<User, String> {
     @Query("SELECT c FROM users c")
     List<User> findAllUsers();
 }
+
+
+
+

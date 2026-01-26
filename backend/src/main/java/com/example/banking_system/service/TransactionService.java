@@ -7,8 +7,17 @@ import com.example.banking_system.entity.Transaction;
 import com.example.banking_system.enums.TransactionStatus;
 import com.example.banking_system.enums.TransactionType;
 import com.example.banking_system.enums.VerificationStatus;
+import com.example.banking_system.exception.AccountStatusException;
+import com.example.banking_system.exception.BusinessRuleViolationException;
+import com.example.banking_system.exception.InsufficientFundsException;
+import com.example.banking_system.exception.UnauthorizedAccountAccessException;
+import com.example.banking_system.service.AuditService;
+import com.example.banking_system.service.NotificationService;
 import com.example.banking_system.repository.AccountRepository;
 import com.example.banking_system.repository.TransactionRepository;
+import com.example.banking_system.service.EmailService;
+import com.example.banking_system.event.TransferCompletedEvent;
+import org.springframework.context.ApplicationEventPublisher;
 import com.itextpdf.text.BaseColor;
 import com.itextpdf.text.Chunk;
 import com.itextpdf.text.Document;
@@ -21,15 +30,21 @@ import com.itextpdf.text.Paragraph;
 import com.itextpdf.text.pdf.PdfPCell;
 import com.itextpdf.text.pdf.PdfPTable;
 import com.itextpdf.text.pdf.PdfWriter;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 
 import java.io.ByteArrayOutputStream;
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
@@ -40,6 +55,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 @Service
+@Slf4j
 public class TransactionService {
 
     @Autowired
@@ -54,16 +70,71 @@ public class TransactionService {
     @Autowired
     private EmailService emailService;
 
+    @Autowired
+    private AuditService auditService;
+
+    @Autowired
+    private ApplicationEventPublisher eventPublisher;
+
+    @Value("${bankwise.transfer.min-amount:1}")
+    private BigDecimal minTransferAmount;
+
+    @Value("${bankwise.transfer.max-amount:50000}")
+    private BigDecimal maxTransferAmount;
+
+    @Value("${bankwise.transfer.daily-limit:100000}")
+    private BigDecimal dailyTransferLimit;
+
     @Transactional
     public String processTransaction(TransferRequestDto transferRequestDto) {
+        log.info("Processing transfer from={} to={} amount={}", transferRequestDto.getFromAccount(), transferRequestDto.getToAccount(), transferRequestDto.getAmount());
+        if (transferRequestDto.getAmount() == null) {
+            throw new BusinessRuleViolationException("Transfer amount is required");
+        }
+        if (transferRequestDto.getAmount().compareTo(minTransferAmount) < 0) {
+            throw new BusinessRuleViolationException("Transfer amount below minimum limit");
+        }
+        if (transferRequestDto.getAmount().compareTo(maxTransferAmount) > 0) {
+            throw new BusinessRuleViolationException("Transfer amount exceeds per-transaction limit");
+        }
+        // Prevent self-transfer
+        if (transferRequestDto.getFromAccount() != null && 
+            transferRequestDto.getFromAccount().equals(transferRequestDto.getToAccount())) {
+            throw new BusinessRuleViolationException("Cannot transfer to your own account");
+        }
         Account fromAccount = accountRepository
                 .findByAccountNumber(transferRequestDto.getFromAccount())
                 .orElseThrow(() -> new RuntimeException("From account not found"));
         Account toAccount = accountRepository
                 .findByAccountNumber(transferRequestDto.getToAccount())
                 .orElseThrow(() -> new RuntimeException("To account not found"));
+
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        String currentEmail = auth != null ? auth.getName() : null;
+        if (currentEmail == null || fromAccount.getUser() == null || !fromAccount.getUser().getEmail().equalsIgnoreCase(currentEmail)) {
+            auditService.record("TRANSFER", "ACCOUNT", transferRequestDto.getFromAccount(), "DENIED", "Ownership validation failed");
+            throw new UnauthorizedAccountAccessException("You are not authorized to transfer from this account");
+        }
+
+        if (fromAccount.getVerificationStatus() == VerificationStatus.SUSPENDED || fromAccount.getVerificationStatus() == VerificationStatus.DISABLED) {
+            auditService.record("TRANSFER", "ACCOUNT", transferRequestDto.getFromAccount(), "DENIED", "Account is suspended or disabled");
+            throw new AccountStatusException("Account is suspended or disabled");
+        }
+        if (fromAccount.getVerificationStatus() != VerificationStatus.VERIFIED) {
+            auditService.record("TRANSFER", "ACCOUNT", transferRequestDto.getFromAccount(), "DENIED", "Account not verified");
+            throw new AccountStatusException("Account is not verified");
+        }
         if (!toAccount.getVerificationStatus().equals(VerificationStatus.VERIFIED)) {
+            auditService.record("TRANSFER", "ACCOUNT", transferRequestDto.getToAccount(), "DENIED", "Destination account not verified");
             return "Destination Account has not been verified";
+        }
+
+        LocalDateTime startOfDay = LocalDate.now().atStartOfDay();
+        LocalDateTime endOfDay = LocalDate.now().atTime(LocalTime.MAX);
+        BigDecimal todayTotal = transactionRepository.sumDailyTransfers(fromAccount.getAccountNumber(), startOfDay, endOfDay);
+        if (todayTotal.add(transferRequestDto.getAmount()).compareTo(dailyTransferLimit) > 0) {
+            auditService.record("TRANSFER", "ACCOUNT", fromAccount.getAccountNumber(), "DENIED", "Daily limit exceeded");
+            throw new BusinessRuleViolationException("Daily transfer limit exceeded");
         }
         TransactionStatus transactionStatus;
         if (fromAccount.getBalance().compareTo(transferRequestDto.getAmount()) >= 0) {
@@ -72,12 +143,16 @@ public class TransactionService {
             accountRepository.save(fromAccount);
             accountRepository.save(toAccount);
             transactionStatus = TransactionStatus.SUCCESS;
-            notificationService.sendNotification(fromAccount.getUser().getEmail(),
-                    "You have successfully transferred " + transferRequestDto.getAmount() +
-                            " to account " + toAccount.getAccountNumber());
-            notificationService.sendNotification(toAccount.getUser().getEmail(),
-                    "You have received " + transferRequestDto.getAmount() +
-                            " from account " + fromAccount.getAccountNumber());
+            // Publish event - notifications will be sent asynchronously AFTER transaction commits
+            eventPublisher.publishEvent(new TransferCompletedEvent(
+                this,
+                fromAccount.getAccountNumber(),
+                toAccount.getAccountNumber(),
+                transferRequestDto.getAmount(),
+                fromAccount.getUser().getEmail(),
+                toAccount.getUser().getEmail(),
+                true
+            ));
         } else {
             transactionStatus = TransactionStatus.FAILED;
         }
@@ -90,11 +165,27 @@ public class TransactionService {
                 .timestamp(LocalDateTime.now())
                 .build();
         transactionRepository.save(transaction);
+        if (transactionStatus == TransactionStatus.SUCCESS) {
+            auditService.record("TRANSFER", "TRANSACTION", String.valueOf(transaction.getId()), "SUCCESS",
+                    "from=" + fromAccount.getAccountNumber() + " to=" + toAccount.getAccountNumber() + " amount=" + transferRequestDto.getAmount());
+        } else {
+            auditService.record("TRANSFER", "TRANSACTION", String.valueOf(transaction.getId()), "FAILED",
+                    "Insufficient balance or failed validation");
+            throw new InsufficientFundsException("Insufficient balance for transfer");
+        }
+        log.info("Transfer completed status={} from={} to={}", transactionStatus, fromAccount.getAccountNumber(), toAccount.getAccountNumber());
         return transactionStatus.toString();
     }
 
     public List<TransactionResponseDto> getTransaction(String accountNumber, int page, int pageSize,
                                                        LocalDate startDate, LocalDate endDate) {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        String currentEmail = auth != null ? auth.getName() : null;
+        Account account = accountRepository.findByAccountNumber(accountNumber)
+                .orElseThrow(() -> new UnauthorizedAccountAccessException("Account not found"));
+        if (currentEmail == null || account.getUser() == null || !account.getUser().getEmail().equalsIgnoreCase(currentEmail)) {
+            throw new UnauthorizedAccountAccessException("You are not authorized to access this account");
+        }
         Pageable pageable = PageRequest.of(page, pageSize);
         LocalDateTime start = (startDate != null) ? startDate.atStartOfDay() :
                 LocalDate.of(2000, 1, 1).atStartOfDay();
@@ -113,15 +204,34 @@ public class TransactionService {
         transactionResponseDto.setAmount(transaction.getAmount());
         transactionResponseDto.setStatus(transaction.getStatus());
         transactionResponseDto.setTimestamp(transaction.getTimestamp());
-        transactionResponseDto.setToAccount(transaction.getDestinationAccount().getAccountNumber());
         transactionResponseDto.setType(transaction.getType());
-        if (transaction.getType().equals(TransactionType.DEPOSIT) || transaction.getType().equals(TransactionType.WITHDRAW)) {
-            transactionResponseDto.setFromAccount("SYSTEM");
+        
+        // Handle destination account (may be null for some transaction types)
+        if (transaction.getDestinationAccount() != null) {
+            transactionResponseDto.setToAccount(transaction.getDestinationAccount().getAccountNumber());
         } else {
-            transactionResponseDto.setFromAccount(transaction.getSourceAccount().getAccountNumber());
+            transactionResponseDto.setToAccount("SYSTEM");
         }
-        // If you have a description field, set it here:
-        // transactionResponseDto.setDescription(transaction.getDescription());
+        
+        // Handle source account based on transaction type
+        TransactionType type = transaction.getType();
+        if (type == TransactionType.DEPOSIT
+                || type == TransactionType.WITHDRAW
+                || type == TransactionType.LOAN_DISBURSEMENT) {
+            transactionResponseDto.setFromAccount("SYSTEM");
+        } else if (type == TransactionType.LOAN_PAYMENT || type == TransactionType.LOAN_PENALTY) {
+            // For loan repayments, source is the user's account (set by repayLoan)
+            if (transaction.getSourceAccount() != null) {
+                transactionResponseDto.setFromAccount(transaction.getSourceAccount().getAccountNumber());
+            } else {
+                transactionResponseDto.setFromAccount("USER");
+            }
+            transactionResponseDto.setToAccount("LOAN_ACCOUNT");
+        } else {
+            transactionResponseDto.setFromAccount(transaction.getSourceAccount() != null 
+                ? transaction.getSourceAccount().getAccountNumber() 
+                : "UNKNOWN");
+        }
         return transactionResponseDto;
     }
 
@@ -136,7 +246,6 @@ public class TransactionService {
 
         List<Account> accounts = accountRepository.findAll();
 
-        // Use a thread pool for parallel processing
         int nThreads = Math.max(2, Runtime.getRuntime().availableProcessors() * 2);
         ExecutorService executor = Executors.newFixedThreadPool(nThreads);
 
@@ -154,36 +263,33 @@ public class TransactionService {
                         emailService.sendTransactionHistoryPdf(account.getUser().getEmail(), pdf);
                     }
                 } catch (Exception e) {
-                    System.out.println("Error while sending transaction pdf to " +
-                            (account.getUser() != null ? account.getUser().getEmail() : "null") +
-                            ": " + e.getMessage());
+                    log.warn("Error sending transaction PDF to email={}",
+                            (account.getUser() != null ? account.getUser().getEmail() : "null"), e);
                 }
             });
         }
 
-        // Shutdown and wait for all tasks to finish
         executor.shutdown();
         boolean finished = executor.awaitTermination(30, TimeUnit.MINUTES);
         if (!finished) {
-            System.err.println("Not all transaction reports finished sending in time.");
+            log.warn("Not all transaction reports finished sending in time.");
         }
     }
 
+    @Async
     private byte[] generateTransactionPdf(List<TransactionResponseDto> transactionResponseDtos,
                                           Account account, LocalDate startDate, LocalDate endDate) {
         ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
-        Document document = new Document(PageSize.A4, 36, 36, 54, 36); // Margins
+        Document document = new Document(PageSize.A4, 36, 36, 54, 36);
 
         try {
             PdfWriter.getInstance(document, outputStream);
             document.open();
 
-            // Add document info
             document.addAuthor(account.getAccountNumber());
             document.addCreationDate();
             document.addTitle("Monthly Transactions");
 
-            // Title Section
             Font titleFont = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 18);
             Paragraph title = new Paragraph("Monthly Transactions Statement", titleFont);
             title.setAlignment(Element.ALIGN_CENTER);
@@ -191,23 +297,19 @@ public class TransactionService {
 
             document.add(Chunk.NEWLINE);
 
-            // Account & Period Info
             Font infoFont = FontFactory.getFont(FontFactory.HELVETICA, 12);
             document.add(new Paragraph("Account Number: " + account.getAccountNumber(), infoFont));
             document.add(new Paragraph("Period: " + startDate + " - " + endDate, infoFont));
             document.add(Chunk.NEWLINE);
 
-            // Table Setup
-            PdfPTable table = new PdfPTable(6); // 6 columns (removed Description for generic DTO)
+            PdfPTable table = new PdfPTable(6);
             table.setWidthPercentage(100);
             table.setSpacingBefore(10f);
             table.setSpacingAfter(10f);
 
-            // Set column widths (optional, but helps)
             float[] columnWidths = {2f, 2f, 1.5f, 1.5f, 2f, 2f};
             table.setWidths(columnWidths);
 
-            // Table Header
             Font headFont = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 12);
             String[] headers = {"From", "To", "Amount", "Type", "Status", "Timestamp"};
             for (String header : headers) {
@@ -217,7 +319,6 @@ public class TransactionService {
                 table.addCell(hcell);
             }
 
-            // Table Content
             Font cellFont = FontFactory.getFont(FontFactory.HELVETICA, 10);
             for (TransactionResponseDto dto : transactionResponseDtos) {
                 table.addCell(new PdfPCell(new Paragraph(dto.getFromAccount(), cellFont)));
@@ -237,3 +338,7 @@ public class TransactionService {
         return outputStream.toByteArray();
     }
 }
+
+
+
+

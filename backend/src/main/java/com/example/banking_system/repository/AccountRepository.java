@@ -1,11 +1,13 @@
 package com.example.banking_system.repository;
 
 import com.example.banking_system.entity.Account;
-
 import com.example.banking_system.entity.User;
+import com.example.banking_system.enums.VerificationStatus;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 
 import java.math.BigDecimal;
 import java.util.List;
@@ -42,4 +44,44 @@ public interface AccountRepository extends JpaRepository<Account, Long> {
         @Param("start") BigDecimal start,
         @Param("end") BigDecimal end
     );
+
+    @Query(
+            "SELECT a FROM Account a JOIN a.user u " +
+                    "WHERE (:status IS NULL OR a.verificationStatus = :status) " +
+                    "AND (:q IS NULL OR " +
+                    "CAST(a.accountNumber AS string) LIKE CONCAT('%', CAST(:q AS string), '%') OR " +
+                    "LOWER(u.email) LIKE LOWER(CONCAT('%', CAST(:q AS string), '%')) OR " +
+                    "LOWER(u.name) LIKE LOWER(CONCAT('%', CAST(:q AS string), '%'))" +
+                    ")"
+    )
+    List<Account> searchAccounts(
+            @Param("status") VerificationStatus status,
+            @Param("q") String q
+    );
+
+        @Query("SELECT a FROM Account a JOIN a.user u " +
+            "WHERE a.verificationStatus = :status " +
+            "AND (a.accountNumber LIKE CONCAT('%', :q, '%') OR u.phone LIKE CONCAT('%', :q, '%'))")
+        Page<Account> searchRecipientsByAccountOrPhone(
+            @Param("status") VerificationStatus status,
+            @Param("q") String q,
+            Pageable pageable
+        );
+
+        @Query("SELECT a FROM Account a JOIN a.user u " +
+            "WHERE a.verificationStatus = :status " +
+            "AND LOWER(u.name) LIKE LOWER(CONCAT('%', :q, '%'))")
+        Page<Account> searchRecipientsByName(
+            @Param("status") VerificationStatus status,
+            @Param("q") String q,
+            Pageable pageable
+        );
+
+
+
+    long countByVerificationStatus(VerificationStatus status);
 }
+
+
+
+

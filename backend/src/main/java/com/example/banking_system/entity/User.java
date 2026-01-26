@@ -8,6 +8,7 @@ import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.Collection;
 import java.util.List;
 
@@ -36,6 +37,23 @@ public class User implements UserDetails {
     private Role role;
 
     private String address;
+
+    @Basic(fetch = FetchType.LAZY)
+    @Column(columnDefinition = "BYTEA")
+    private byte[] profilePhoto;
+
+    private String profilePhotoContentType;
+
+    // Credit score - starts at 700, updated based on loan repayments
+    @Builder.Default
+    private Integer creditScore = 700;
+
+    // Transaction PIN (hashed) for secure transfers
+    private String transactionPin;
+    
+    // PIN reset token for forgot PIN flow
+    private String pinResetToken;
+    private LocalDateTime pinResetTokenExpiry;
 
     @Override
     public Collection<? extends GrantedAuthority> getAuthorities() {
@@ -68,4 +86,8 @@ public class User implements UserDetails {
 
 
 }
+
+
+
+
 

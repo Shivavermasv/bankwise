@@ -27,4 +27,11 @@ public class LoginResponseUserDto {
 
     @Enumerated(EnumType.STRING)
     private VerificationStatus verificationStatus;
+
+    private String profilePhoto; // base64 encoded
+    private String profilePhotoContentType;
 }
+
+
+
+

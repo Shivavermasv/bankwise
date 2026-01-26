@@ -1,16 +1,26 @@
 package com.example.banking_system.controller;
 
 import com.example.banking_system.dto.LoanRequestDto;
+import com.example.banking_system.dto.LoanResponseDto;
+import com.example.banking_system.dto.LoanStatusUpdateRequest;
 import com.example.banking_system.enums.LoanStatus;
 import com.example.banking_system.exception.ResourceNotFoundException;
 import com.example.banking_system.service.LoanService;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.RequestParam;
+
+import java.math.BigDecimal;
+import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/loan")
@@ -18,33 +28,69 @@ import org.springframework.web.bind.annotation.RestController;
 public class LoanController {
 
     private final LoanService loanService;
-    // This controller will handle loan-related requests
-    // You can add methods to handle loan requests, approvals, etc.
-    // - Submit a loan request
-    // - Approve a loan request
-    // - Reject a loan request
-    // - Get loan details by account number or status
 
     @PostMapping("/apply")
-    @PreAuthorize("hasRole('USER')")
-    public ResponseEntity<Object> applyForLoan(@RequestBody LoanRequestDto loanRequestDto) throws ResourceNotFoundException {
-        // This method will handle loan application requests
-        // You can call the LoanService to process the request
+    @PreAuthorize("hasAnyRole('USER','CUSTOMER')")
+    public ResponseEntity<Object> applyForLoan(@Valid @RequestBody LoanRequestDto loanRequestDto) throws ResourceNotFoundException {
         return ResponseEntity.ok(loanService.applyForLoan(loanRequestDto));
     }
 
     @PostMapping("/status")
-    @PreAuthorize("hasRole('MANAGER')")
-    public ResponseEntity<Object> updateLoanStatus(Long loanId, String status, String adminRemark) throws ResourceNotFoundException {
-        // This method will handle updating the status of a loan request
-        // You can call the LoanService to process the update
+    @PreAuthorize("hasAnyRole('ADMIN','MANAGER')")
+    public ResponseEntity<Object> updateLoanStatus(@Valid @RequestBody LoanStatusUpdateRequest request) throws ResourceNotFoundException {
         LoanStatus loanStatus;
         try{
-            loanStatus = LoanStatus.valueOf(status.toUpperCase());
+            loanStatus = LoanStatus.valueOf(request.getStatus().toUpperCase());
         } catch (IllegalArgumentException e) {
             return ResponseEntity.badRequest().body("Invalid loan status provided");
         }
 
-        return ResponseEntity.ok(loanService.updateLoanStatus(loanId, loanStatus, adminRemark));
+        return ResponseEntity.ok(loanService.updateLoanStatus(request.getLoanId(), loanStatus, request.getAdminRemark()));
+    }
+
+    @GetMapping("/pending")
+    @PreAuthorize("hasAnyRole('ADMIN','MANAGER')")
+    public ResponseEntity<List<LoanResponseDto>> getPendingLoans() {
+        return ResponseEntity.ok(loanService.getLoansByStatus(LoanStatus.PENDING));
+    }
+
+    @GetMapping("/my/{accountNumber}")
+    @PreAuthorize("hasAnyRole('USER','CUSTOMER')")
+    public ResponseEntity<List<LoanResponseDto>> getMyLoans(@PathVariable String accountNumber) {
+        return ResponseEntity.ok(loanService.getLoansByAccount(accountNumber));
+    }
+
+    @GetMapping("/active/{accountNumber}")
+    @PreAuthorize("hasAnyRole('USER','CUSTOMER')")
+    public ResponseEntity<LoanResponseDto> getActiveLoan(@PathVariable String accountNumber) {
+        return ResponseEntity.ok(loanService.getActiveLoan(accountNumber));
+    }
+
+    @PostMapping("/repay/{loanId}")
+    @PreAuthorize("hasAnyRole('USER','CUSTOMER')")
+    public ResponseEntity<Object> repayLoan(@PathVariable Long loanId, @RequestParam BigDecimal amount) throws ResourceNotFoundException {
+        return ResponseEntity.ok(loanService.repayLoan(loanId, amount));
+    }
+
+    @GetMapping("/emi-details/{loanId}")
+    @PreAuthorize("hasAnyRole('USER','CUSTOMER')")
+    public ResponseEntity<Map<String, Object>> getEmiDetails(@PathVariable Long loanId) throws ResourceNotFoundException {
+        return ResponseEntity.ok(loanService.getEmiDetails(loanId));
+    }
+
+    @PostMapping("/approve/{loanId}")
+    @PreAuthorize("hasAnyRole('ADMIN','MANAGER')")
+    public ResponseEntity<Object> approveLoan(@PathVariable Long loanId) throws ResourceNotFoundException {
+        return ResponseEntity.ok(loanService.updateLoanStatus(loanId, LoanStatus.APPROVED, "Approved"));
+    }
+
+    @PostMapping("/reject/{loanId}")
+    @PreAuthorize("hasAnyRole('ADMIN','MANAGER')")
+    public ResponseEntity<Object> rejectLoan(@PathVariable Long loanId) throws ResourceNotFoundException {
+        return ResponseEntity.ok(loanService.updateLoanStatus(loanId, LoanStatus.REJECTED, "Rejected"));
     }
 }
+
+
+
+

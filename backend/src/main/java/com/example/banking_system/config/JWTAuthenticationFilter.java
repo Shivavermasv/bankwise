@@ -1,10 +1,10 @@
 package com.example.banking_system.config;
 
+import com.example.banking_system.service.OtpService;
 import com.example.banking_system.entity.Account;
 import com.example.banking_system.entity.User;
 import com.example.banking_system.enums.Role;
 import com.example.banking_system.repository.AccountRepository;
-import com.example.banking_system.service.OtpService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.http.HttpServletRequest;
@@ -21,7 +21,6 @@ import org.springframework.security.core.userdetails.UserDetails;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
-
 
 public class JWTAuthenticationFilter extends org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter {
 
@@ -52,72 +51,17 @@ public class JWTAuthenticationFilter extends org.springframework.security.web.au
         }
     }
 
-//    @Override
-//    protected void successfulAuthentication(HttpServletRequest request, HttpServletResponse response, FilterChain chain, Authentication authResult) throws IOException, ServletException {
-//        UserDetails userDetails = (UserDetails) authResult.getPrincipal();
-//
-//        User user = (User) userDetails;
-//
-//
-//        String otp = userService.generateAndStoreOtp(user.getEmail());
-//        userService.sendOtp(user.getEmail(), otp);
-//
-//        List<String> roles = userDetails.getAuthorities()
-//                .stream()
-//                .map(GrantedAuthority::getAuthority)
-//                .collect(Collectors.toList());
-//
-//        String token = Jwts.builder()
-//                .setSubject(userDetails.getUsername())
-//                .claim("roles", roles)
-//                .setExpiration(new Date(System.currentTimeMillis() + SecurityConstants.EXPIRATION_TIME))
-//                .signWith(SignatureAlgorithm.HS512, SecurityConstants.SECRET.getBytes(StandardCharsets.UTF_8))
-//                .compact();
-//
-//        response.addHeader(SecurityConstants.HEADER_STRING, SecurityConstants.TOKEN_PREFIX + token);
-//
-//        if(user.getRole().equals(Role.USER)){
-//            Account account = accountRepository.findAccountByUser(user)
-//                    .orElseThrow(()->new UsernameNotFoundException("User not found"));
-//            response.setContentType("application/json");
-//            new ObjectMapper().writeValue(response.getOutputStream(),
-//                    LoginResponseUserDto.builder()
-//                    .username(user.getName())
-//                            .AccountNumber(account.getAccountNumber())
-//                            .email(user.getEmail())
-//                            .role(user.getRole())
-//                            .verificationStatus(account.getVerificationStatus())
-//                            .balance(account.getBalance())
-//                            .build()
-//                    );
-//        }
-//        else{
-//            response.setContentType("application/json");
-//            new ObjectMapper().writeValue(response.getOutputStream(),
-//                    LoginResponseAdminManagerDto.builder()
-//                            .email(user.getEmail())
-//                    .username(user.getName())
-//                            .role(user.getRole())
-//                            .build()
-//                    );
-//        }
-//    }
-//
-//    // DTO for login credentials
-//    @Setter
-//    @Getter
-//    public static class LoginRequest {
-//        // Getters and Setters
-//        private String username;
-//        private String password;
-//
-//    }
-
     @Override
     protected void successfulAuthentication(HttpServletRequest req, HttpServletResponse res,
                                             FilterChain chain, Authentication auth) throws IOException {
         User user = (User) ((UserDetails) auth.getPrincipal());
         String email = user.getEmail();
+
+        // Developers skip OTP verification
+        if (user.getRole() == Role.DEVELOPER) {
+            sendJwtResponse(res, user);
+            return;
+        }
 
         if (userService.isOtpAlreadyVerified(email)) {
             sendJwtResponse(res, user);
@@ -133,22 +77,28 @@ public class JWTAuthenticationFilter extends org.springframework.security.web.au
     }
 
     private void sendJwtResponse(HttpServletResponse res, User user) throws IOException {
-        String token = "Bearer "+userService.generateToken(user.getEmail());
-        res.addHeader(SecurityConstants.HEADER_STRING, SecurityConstants.TOKEN_PREFIX + token);
+        String token = userService.generateToken(user.getEmail());
+        res.addHeader(SecurityConstants.HEADER_STRING, SecurityConstants.TOKEN_PREFIX + "Bearer " + token);
 
-        Map<String, Object> body = buildLoginResponse(user);
+        Map<String, Object> body = buildLoginResponse(user, token);
         res.setContentType(MediaType.APPLICATION_JSON_VALUE);
         new ObjectMapper().writeValue(res.getOutputStream(), body);
     }
 
-    private Map<String, Object> buildLoginResponse(User user) {
+    private Map<String, Object> buildLoginResponse(User user, String token) {
         var base = new HashMap<String, Object>();
-        base.put("token", null); // already set in header
+        base.put("token", token);
         base.put("username", user.getName());
         base.put("email", user.getEmail());
         base.put("role", user.getRole());
 
-        if (user.getRole() == Role.USER) {
+        // Add profile photo if available
+        if (user.getProfilePhoto() != null && user.getProfilePhoto().length > 0) {
+            base.put("profilePhoto", java.util.Base64.getEncoder().encodeToString(user.getProfilePhoto()));
+            base.put("profilePhotoContentType", user.getProfilePhotoContentType());
+        }
+
+        if (user.getRole() == Role.USER || user.getRole() == Role.CUSTOMER) {
             Account acc = accountRepository.findAccountByUser(user).orElseThrow();
             base.put("accountNumber", acc.getAccountNumber());
             base.put("verificationStatus", acc.getVerificationStatus());
@@ -164,3 +114,7 @@ public class JWTAuthenticationFilter extends org.springframework.security.web.au
     }
 
 }
+
+
+
+

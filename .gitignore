@@ -2,12 +2,31 @@
 **/node_modules             
 
 # Ignore build outputs
-/frontend/build              
+/frontend/build  
+/frontend/frontend/dist            
 /backend/target              
 
 # Ignore environment and IDE files
 *.log                       
-.env                         
-.vscode/                    
+.env
+.env.local
+.env.*.local
+!.env.example
+!.env.production                         
 .idea/                       
 *.iml                       
+
+# Logs directory
+logs/
+
+# Local Netlify folder
+.netlify
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Editor directories
+.vscode/
+*.swp
+*.swo

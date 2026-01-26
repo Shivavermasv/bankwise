@@ -6,6 +6,7 @@ import com.example.banking_system.repository.UserRepository;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.SignatureAlgorithm;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.RandomStringUtils;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.stereotype.Service;
@@ -16,6 +17,7 @@ import java.util.concurrent.ConcurrentHashMap;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class OtpService {
 
     private final UserRepository userRepository;
@@ -39,7 +41,7 @@ public class OtpService {
 
     public void sendOtp(String email, String otp) {
         emailService.sendEmail(email, "OTP for Authentication", "Your OTP is: " + otp);
-        System.out.println("OTP for " + email + " is " + otp); // For dev/testing
+        log.info("OTP generated for email={}", email+otp);
     }
 
     public boolean verifyOtp(String email, String userOtp) {
@@ -68,3 +70,7 @@ public class OtpService {
     }
 
 }
+
+
+
+

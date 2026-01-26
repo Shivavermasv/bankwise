@@ -4,5 +4,11 @@ public enum LoanStatus {
     PENDING,
     APPROVED,
     REJECTED,
-    CLOSED
+    CLOSED,
+    ACTIVE,        // Loan is active with ongoing EMI payments
+    FULLY_PAID     // All EMIs paid, loan completed
 }
+
+
+
+

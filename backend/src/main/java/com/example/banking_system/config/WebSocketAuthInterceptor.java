@@ -3,6 +3,7 @@ package com.example.banking_system.config;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
 import jakarta.servlet.http.HttpServletRequest;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.server.ServerHttpRequest;
 import org.springframework.http.server.ServerHttpResponse;
@@ -16,9 +17,8 @@ import java.util.List;
 import java.util.Map;
 
 @Component
+@Slf4j
 public class WebSocketAuthInterceptor implements HandshakeInterceptor {
-
-    private static final String SECRET = SecurityConstants.SECRET; // use same key as your JWTAuthorizationFilter
 
     @Override
     public boolean beforeHandshake(ServerHttpRequest request,
@@ -28,7 +28,7 @@ public class WebSocketAuthInterceptor implements HandshakeInterceptor {
 
         if (request instanceof ServletServerHttpRequest servletRequest) {
             HttpServletRequest httpRequest = servletRequest.getServletRequest();
-            String token = httpRequest.getParameter("token"); // ✅ Get token from query param
+            String token = httpRequest.getParameter("token");
 
             if (token != null) {
                 try {
@@ -48,7 +48,7 @@ public class WebSocketAuthInterceptor implements HandshakeInterceptor {
                         return true;
                     }
                 } catch (Exception e) {
-                    System.out.println("❌ JWT validation failed: " + e.getMessage());
+                    log.warn("WebSocket JWT validation failed: {}", e.getMessage());
                 }
             }
         }
@@ -66,3 +66,7 @@ public class WebSocketAuthInterceptor implements HandshakeInterceptor {
         // Nothing needed
     }
 }
+
+
+
+

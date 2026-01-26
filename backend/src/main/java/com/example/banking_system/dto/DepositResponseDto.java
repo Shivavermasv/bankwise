@@ -20,3 +20,7 @@ public class DepositResponseDto {
     private DepositStatus status;
     private LocalDateTime depositTime;
 }
+
+
+
+

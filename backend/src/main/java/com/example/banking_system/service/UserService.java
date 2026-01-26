@@ -5,20 +5,27 @@ import com.example.banking_system.entity.Account;
 import com.example.banking_system.entity.User;
 import com.example.banking_system.enums.AccountType;
 import com.example.banking_system.enums.Role;
+import com.example.banking_system.service.NotificationService;
 import com.example.banking_system.repository.AccountRepository;
 import com.example.banking_system.repository.UserRepository;
+import com.example.banking_system.service.AuditService;
+import com.example.banking_system.exception.BusinessRuleViolationException;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.util.Base64;
 import java.util.List;
 
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class UserService {
 
     private final NotificationService notificationService;
@@ -29,6 +36,12 @@ public class UserService {
 
     private final PasswordEncoder passwordEncoder;
 
+    private final AuditService auditService;
+
+    @Value("${bankwise.admin.registration-code:4321}")
+    private String adminRegistrationCode;
+
+    private static final long MAX_PROFILE_PHOTO_SIZE = 500 * 1024; // 500KB
 
     private static final long OTP_SESSION_TTL = 10 * 60;
 
@@ -42,6 +55,15 @@ public class UserService {
 
     @Transactional
     public Object createUser(CreateRequestDto createRequestDto) {
+        log.info("Creating user with email={} role={}", createRequestDto.getEmail(), createRequestDto.getRole());
+
+        // Validate admin registration code
+        if (Role.ADMIN.equals(createRequestDto.getRole())) {
+            if (createRequestDto.getAdminCode() == null || !adminRegistrationCode.equals(createRequestDto.getAdminCode())) {
+                throw new BusinessRuleViolationException("Invalid admin registration code");
+            }
+        }
+
         User user = User.builder()
                 .role(createRequestDto.getRole())
                 .address(createRequestDto.getAddress())
@@ -52,9 +74,26 @@ public class UserService {
                 .password(createRequestDto.getPassword())
                 .build();
 
+        // Handle profile photo (optional)
+        if (createRequestDto.getProfilePhoto() != null && !createRequestDto.getProfilePhoto().isEmpty()) {
+            try {
+                byte[] photoBytes = Base64.getDecoder().decode(createRequestDto.getProfilePhoto());
+                if (photoBytes.length > MAX_PROFILE_PHOTO_SIZE) {
+                    throw new BusinessRuleViolationException("Profile photo must be less than 500KB");
+                }
+                user.setProfilePhoto(photoBytes);
+                user.setProfilePhotoContentType(createRequestDto.getProfilePhotoContentType());
+            } catch (IllegalArgumentException e) {
+                log.warn("Invalid base64 profile photo for user={}", createRequestDto.getEmail());
+            }
+        }
+
         user.setPassword(passwordEncoder.encode(user.getPassword()));
         User savedUser;
-        if (Role.USER.equals(user.getRole())) {
+        if (Role.USER.equals(user.getRole()) || Role.CUSTOMER.equals(user.getRole())) {
+            if (createRequestDto.getAccountType() == null || createRequestDto.getAccountType().isBlank()) {
+                throw new IllegalArgumentException("Account type is required");
+            }
             Account account = new Account();
             account.setBalance(BigDecimal.valueOf(5000));
             account.setUser(user);
@@ -81,13 +120,15 @@ public class UserService {
             }
         }
         savedUser = userRepository.save(user);
+        log.info("User created with id={} email={}", savedUser.getId(), savedUser.getEmail());
+        auditService.recordSystem("USER_CREATE", "USER", String.valueOf(savedUser.getId()), "SUCCESS",
+            "email=" + savedUser.getEmail() + " role=" + savedUser.getRole());
 
         return savedUser;
     }
 
-
-
-
-
-
 }
+
+
+
+

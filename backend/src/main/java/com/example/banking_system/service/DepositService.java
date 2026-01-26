@@ -10,40 +10,60 @@ import com.example.banking_system.enums.DepositStatus;
 import com.example.banking_system.enums.Role;
 import com.example.banking_system.enums.TransactionStatus;
 import com.example.banking_system.enums.TransactionType;
+import com.example.banking_system.enums.VerificationStatus;
+import com.example.banking_system.exception.AccountStatusException;
+import com.example.banking_system.exception.DepositRequestNotFoundException;
+import com.example.banking_system.exception.InvalidDepositActionException;
+import com.example.banking_system.exception.UnauthorizedAccountAccessException;
+import com.example.banking_system.service.AuditService;
+import com.example.banking_system.service.NotificationService;
 import com.example.banking_system.repository.AccountRepository;
 import com.example.banking_system.repository.DepositRepository;
 import com.example.banking_system.repository.TransactionRepository;
 import com.example.banking_system.repository.UserRepository;
-import org.springframework.beans.factory.annotation.Autowired;
+import com.example.banking_system.event.DepositProcessedEvent;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Locale;
 import java.util.stream.Collectors;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 
 @Service
+@Slf4j
+@RequiredArgsConstructor
 public class DepositService {
-    @Autowired
-    private AccountRepository accountRepository;
-
-    @Autowired
-    private DepositRepository depositRepository;
-
-    @Autowired
-    private TransactionRepository transactionRepository;
-
-    @Autowired
-    private NotificationService notificationService;
-
-    @Autowired
-    private UserRepository userRepository;
+    private final AccountRepository accountRepository;
+    private final DepositRepository depositRepository;
+    private final TransactionRepository transactionRepository;
+    private final NotificationService notificationService;
+    private final UserRepository userRepository;
+    private final AuditService auditService;
+    private final ApplicationEventPublisher eventPublisher;
 
     public String createDepositRequest(DepositRequestDto depositRequestDto) {
+        log.info("Creating deposit request accountNumber={} amount={}", depositRequestDto.getAccountNumber(), depositRequestDto.getAmount());
         Account account = accountRepository.findByAccountNumber(depositRequestDto.getAccountNumber())
-                .orElseThrow(()-> new RuntimeException("Account not found"));
-        DepositRequest  depositRequest = DepositRequest.builder()
+                .orElseThrow(() -> new DepositRequestNotFoundException("Account not found"));
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        String currentEmail = auth != null ? auth.getName() : null;
+        if (currentEmail == null || account.getUser() == null || !account.getUser().getEmail().equalsIgnoreCase(currentEmail)) {
+            auditService.record("DEPOSIT_REQUEST", "ACCOUNT", depositRequestDto.getAccountNumber(), "DENIED", "Ownership validation failed");
+            throw new UnauthorizedAccountAccessException("You are not authorized to create a deposit request for this account");
+        }
+        if (account.getVerificationStatus() != VerificationStatus.VERIFIED) {
+            auditService.record("DEPOSIT_REQUEST", "ACCOUNT", depositRequestDto.getAccountNumber(), "DENIED", "Account not verified");
+            throw new AccountStatusException("Account must be verified to create deposit requests");
+        }
+        DepositRequest depositRequest = DepositRequest.builder()
                 .account(account)
                 .amount(depositRequestDto.getAmount())
                 .refferenceNumber(depositRequestDto.getRefferenceNumber())
@@ -51,76 +71,132 @@ public class DepositService {
                 .depositDate(LocalDateTime.now())
                 .build();
         depositRepository.save(depositRequest);
-        // Notify the user about the deposit request
-        notificationService.sendNotification(account.getUser().getEmail(),
-                "Your deposit request has been created successfully for account: " + depositRequestDto.getAccountNumber());
-
-        for(User user : userRepository.findByRole(Role.ADMIN)){
-            notificationService.sendNotification(user.getEmail(),
-                    "A new deposit request has been created for account: " + depositRequestDto.getAccountNumber());
-        }
-
+        auditService.record("DEPOSIT_REQUEST", "DEPOSIT_REQUEST", String.valueOf(depositRequest.getId()), "PENDING",
+            "amount=" + depositRequestDto.getAmount());
+        
+        // Publish event - notifications will be sent asynchronously AFTER transaction commits
+        eventPublisher.publishEvent(new DepositProcessedEvent(
+            this,
+            depositRequest.getId(),
+            depositRequestDto.getAccountNumber(),
+            BigDecimal.valueOf(depositRequestDto.getAmount()),
+            "PENDING",
+            account.getUser().getEmail()
+        ));
+        
         return "DepositRequest created";
     }
 
     @Transactional
-    public String approveDepositRequest(Long depositRequestId)  {
-        DepositRequest request = depositRepository.findById(depositRequestId)
-                .orElseThrow(()-> new RuntimeException("Deposit request not found"));
+    public String handleDepositAction(Long depositRequestId, String actionRaw) {
+        log.info("Handling deposit action id={} action={}", depositRequestId, actionRaw);
+        String action = actionRaw == null ? "" : actionRaw.trim().toLowerCase(Locale.ENGLISH);
+        switch (action) {
+            case "approve":
+                return approveInternal(depositRequestId);
+            case "reject":
+                return rejectInternal(depositRequestId);
+            default:
+                throw new InvalidDepositActionException("Invalid action. Use 'approve' or 'reject'.");
+        }
+    }
 
-        if(request.getStatus().equals(DepositStatus.PENDING)){
+    private String approveInternal(Long depositRequestId) {
+        DepositRequest request = depositRepository.findById(depositRequestId)
+                .orElseThrow(() -> new DepositRequestNotFoundException("Deposit request not found"));
+        log.info("Approving deposit request id={} status={}", depositRequestId, request.getStatus());
+        if (request.getStatus() == DepositStatus.DEPOSITED) {
+            return "Already approved"; // idempotent
+        }
+        if (request.getStatus() == DepositStatus.REJECTED) {
+            throw new InvalidDepositActionException("Cannot approve a rejected request");
+        }
+        if (request.getStatus() != DepositStatus.PENDING) {
+            throw new InvalidDepositActionException("Unsupported state transition");
+        }
+        try {
             Account account = request.getAccount();
             account.setBalance(account.getBalance().add(BigDecimal.valueOf(request.getAmount())));
             request.setStatus(DepositStatus.DEPOSITED);
             Transaction transaction = Transaction.builder()
-                            .destinationAccount(account)
-                                    .type(TransactionType.DEPOSIT)
-                                            .sourceAccount(account)
-                                                    .status(TransactionStatus.SUCCESS)
-                                                            .timestamp(LocalDateTime.now())
+                    .destinationAccount(account)
+                    .type(TransactionType.DEPOSIT)
+                    .sourceAccount(account)
+                    .status(TransactionStatus.SUCCESS)
+                    .timestamp(LocalDateTime.now())
                     .amount(BigDecimal.valueOf(request.getAmount())).build();
             transactionRepository.save(transaction);
-            depositRepository.save(request);
-            notificationService.sendNotification(account.getUser().getEmail(),
-                    "Your deposit request has been approved and the amount has been credited " +
-                            "to your account: " + account.getAccountNumber());
-        } else if (request.getStatus().equals(DepositStatus.REJECTED)) {
-            throw new RuntimeException("Deposit request has been rejected");
-        } else{
-            throw new RuntimeException("Deposit request already approved");
+            depositRepository.save(request); // optimistic lock via @Version
+                auditService.record("DEPOSIT_APPROVE", "DEPOSIT_REQUEST", String.valueOf(request.getId()), "SUCCESS",
+                    "amount=" + request.getAmount());
+            
+            // Publish event - notifications will be sent asynchronously AFTER transaction commits
+            eventPublisher.publishEvent(new DepositProcessedEvent(
+                this,
+                request.getId(),
+                account.getAccountNumber(),
+                BigDecimal.valueOf(request.getAmount()),
+                "APPROVED",
+                account.getUser().getEmail()
+            ));
+            
+            return "Approved";
+        } catch (OptimisticLockingFailureException e) {
+            throw new InvalidDepositActionException("Concurrent modification detected. Retry the operation.");
         }
-        return "Approved";
     }
 
-    public String rejectDepositRequest(Long depositRequestId)  {
+    private String rejectInternal(Long depositRequestId) {
         DepositRequest request = depositRepository.findById(depositRequestId)
-                .orElseThrow(()-> new RuntimeException("Deposit request not found"));
-
-        if(request.getStatus().equals(DepositStatus.PENDING)){
-            request.setStatus(DepositStatus.REJECTED);
-            depositRepository.save(request);
-            notificationService.sendNotification(request.getAccount().getUser().getEmail(),
-                    "Your deposit request has been rejected for account: " + request.getAccount().getAccountNumber());
-        } else if (request.getStatus().equals(DepositStatus.REJECTED)) {
-            throw new RuntimeException("Deposit request has already been rejected");
-        } else{
-            throw new RuntimeException("Deposit request already approved");
+                .orElseThrow(() -> new DepositRequestNotFoundException("Deposit request not found"));
+        log.info("Rejecting deposit request id={} status={}", depositRequestId, request.getStatus());
+        if (request.getStatus() == DepositStatus.REJECTED) {
+            return "Already rejected"; // idempotent
         }
+        if (request.getStatus() == DepositStatus.DEPOSITED) {
+            throw new InvalidDepositActionException("Cannot reject an already approved request");
+        }
+        if (request.getStatus() != DepositStatus.PENDING) {
+            throw new InvalidDepositActionException("Unsupported state transition");
+        }
+        request.setStatus(DepositStatus.REJECTED);
+        depositRepository.save(request);
+        auditService.record("DEPOSIT_REJECT", "DEPOSIT_REQUEST", String.valueOf(request.getId()), "REJECTED",
+            "amount=" + request.getAmount());
+        
+        // Publish event - notifications will be sent asynchronously AFTER transaction commits
+        eventPublisher.publishEvent(new DepositProcessedEvent(
+            this,
+            request.getId(),
+            request.getAccount().getAccountNumber(),
+            BigDecimal.valueOf(request.getAmount()),
+            "REJECTED",
+            request.getAccount().getUser().getEmail()
+        ));
+        
         return "Rejected";
     }
 
-    public List<DepositResponseDto> getDepositRequestsByStatus(String status) throws Exception{
+    // Legacy methods kept for backwards compatibility if still referenced elsewhere
+    @Transactional
+    public String approveDepositRequest(Long depositRequestId) {
+        return approveInternal(depositRequestId);
+    }
+    @Transactional
+    public String rejectDepositRequest(Long depositRequestId) {
+        return rejectInternal(depositRequestId);
+    }
+
+    public List<DepositResponseDto> getDepositRequestsByStatus(String status) {
         List<DepositRequest> depositRequests;
-        if(status.equals("ALL")){
+        if ("ALL".equalsIgnoreCase(status)) {
             depositRequests = depositRepository.findAll();
-        }
-        else{
+        } else {
             DepositStatus statusEnum;
-            try{
-                statusEnum = DepositStatus.valueOf(status);
-            }
-            catch (IllegalArgumentException e){
-                throw new RuntimeException("Invalid deposit status");
+            try {
+                statusEnum = DepositStatus.valueOf(status.toUpperCase(Locale.ENGLISH));
+            } catch (IllegalArgumentException e) {
+                throw new InvalidDepositActionException("Invalid deposit status");
             }
             depositRequests = depositRepository.findByStatus(statusEnum);
         }
@@ -138,3 +214,7 @@ public class DepositService {
                 .build();
     }
 }
+
+
+
+

@@ -17,3 +17,7 @@ public class NotificationResponse {
     private LocalDateTime timestamp;
     private boolean seen;
 }
+
+
+
+

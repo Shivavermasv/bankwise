@@ -17,3 +17,7 @@ public class LoginResponseAdminManagerDto {
     @Enumerated(EnumType.STRING)
     private Role role;
 }
+
+
+
+
