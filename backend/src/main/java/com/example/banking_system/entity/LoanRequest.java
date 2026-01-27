@@ -37,10 +37,10 @@ public class LoanRequest {
     private BigDecimal amount;
 
     @Column(nullable = false)
-    private int tenureInMonths;
+    private Integer tenureInMonths = 0;
 
     @Column(nullable = false)
-    private double interestRate;
+    private Double interestRate = 0.0;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
@@ -57,10 +57,10 @@ public class LoanRequest {
     private LocalDate maturityDate;
 
     @Column(name = "emis_paid")
-    private int emisPaid;
+    private Integer emisPaid = 0;
 
     @Column(name = "missed_emis")
-    private int missedEmis;
+    private Integer missedEmis = 0;
 
     // EMI auto-debit fields
     @Column(precision = 19, scale = 2)
@@ -70,7 +70,7 @@ public class LoanRequest {
     private LocalDate nextEmiDate;
 
     @Column(name = "total_emis")
-    private int totalEmis;
+    private Integer totalEmis = 0;
 
     @Column(name = "remaining_principal", precision = 19, scale = 2)
     private BigDecimal remainingPrincipal;
@@ -85,21 +85,21 @@ public class LoanRequest {
     private Integer emiDayOfMonth = 1; // Day of month when EMI is due
 
     public void incrementEmisPaid() {
-        this.emisPaid += 1;
+        this.emisPaid = (this.emisPaid == null ? 0 : this.emisPaid) + 1;
     }
 
     public void incrementMissedEmis() {
-        this.missedEmis += 1;
+        this.missedEmis = (this.missedEmis == null ? 0 : this.missedEmis) + 1;
     }
 
     public void calculateAndSetEmiAmount() {
         // EMI = [P x R x (1+R)^N]/[(1+R)^N-1]
-        double monthlyRate = this.interestRate / 12 / 100;
+        double monthlyRate = (this.interestRate != null ? this.interestRate : 0.0) / 12 / 100;
         double principal = this.amount.doubleValue();
-        int n = this.tenureInMonths;
+        int n = this.tenureInMonths != null ? this.tenureInMonths : 0;
         
-        if (monthlyRate == 0) {
-            this.emiAmount = BigDecimal.valueOf(principal / n);
+        if (monthlyRate == 0 || n == 0) {
+            this.emiAmount = n > 0 ? BigDecimal.valueOf(principal / n) : BigDecimal.ZERO;
         } else {
             double emi = principal * monthlyRate * Math.pow(1 + monthlyRate, n) / (Math.pow(1 + monthlyRate, n) - 1);
             this.emiAmount = BigDecimal.valueOf(emi).setScale(2, java.math.RoundingMode.HALF_UP);
@@ -121,11 +121,15 @@ public class LoanRequest {
     }
 
     public boolean isFullyPaid() {
-        return this.emisPaid >= this.totalEmis;
+        int paid = this.emisPaid != null ? this.emisPaid : 0;
+        int total = this.totalEmis != null ? this.totalEmis : 0;
+        return paid >= total;
     }
 
     public int getRemainingEmis() {
-        return Math.max(0, this.totalEmis - this.emisPaid);
+        int paid = this.emisPaid != null ? this.emisPaid : 0;
+        int total = this.totalEmis != null ? this.totalEmis : 0;
+        return Math.max(0, total - paid);
     }
 }
 

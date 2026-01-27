@@ -119,6 +119,7 @@ export const useAuth = () => {
 
   return {
     user,
+    token: user?.token || sessionStorage.getItem("token"),
     isAuthenticated,
     isLoading,
     login,

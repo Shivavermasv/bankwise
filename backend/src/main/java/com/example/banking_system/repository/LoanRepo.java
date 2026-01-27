@@ -15,15 +15,29 @@ import java.util.Optional;
 @Repository
 public interface LoanRepo extends JpaRepository<LoanRequest, Long> {
 
+    @Query("SELECT l FROM LoanRequest l JOIN FETCH l.bankAccount a JOIN FETCH a.user WHERE l.id = :loanId")
+    Optional<LoanRequest> findByIdWithAccountAndUser(Long loanId);
+
     // Custom query methods can be added here if needed,
     // For example, to find loans by status or account number
-     List<LoanRequest> findByStatus(LoanStatus status);
-     List<LoanRequest> findByBankAccount_AccountNumber(String accountNumber);
+
+
+    @Query("SELECT l FROM LoanRequest l JOIN FETCH l.bankAccount a JOIN FETCH a.user WHERE l.status = :status")
+    List<LoanRequest> findByStatus(LoanStatus status);
+
+    @Query("SELECT l FROM LoanRequest l JOIN FETCH l.bankAccount a JOIN FETCH a.user WHERE l.bankAccount.accountNumber = :accountNumber")
+    List<LoanRequest> findByBankAccount_AccountNumber(String accountNumber);
 
     boolean existsByBankAccount_AccountNumberAndStatusIn(String accountNumber, Collection<LoanStatus> statuses);
 
+
+
+    @Query("SELECT l FROM LoanRequest l JOIN FETCH l.bankAccount a JOIN FETCH a.user WHERE l.status = :loanStatus")
     List<LoanRequest> findAllByStatus(LoanStatus loanStatus);
 
+
+
+    @Query("SELECT l FROM LoanRequest l JOIN FETCH l.bankAccount a JOIN FETCH a.user WHERE l.bankAccount.accountNumber = :accountNumber AND l.status = :status")
     Optional<LoanRequest> findByBankAccount_AccountNumberAndStatus(String accountNumber, LoanStatus status);
 
     long deleteByBankAccount_AccountNumber(String accountNumber);

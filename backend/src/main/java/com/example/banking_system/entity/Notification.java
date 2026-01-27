@@ -19,13 +19,18 @@ public class Notification {
 
     private String message;
 
-    private boolean seen;
+    @Column(name = "seen")
+    private Boolean seen = false;
 
     private LocalDateTime timestamp;
 
     @ManyToOne
     @JoinColumn(name = "user_id", nullable = false)
     private User user;
+
+    public boolean isSeen() {
+        return seen;
+    }
 }
 
 

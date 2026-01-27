@@ -47,7 +47,8 @@ const UserAnalyticsDashboard = ({ embedded = false }) => {
 
   useEffect(() => {
     loadAnalytics();
-  }, [loadAnalytics]);
+    console.log({ dashboard, spending, loans, debts });
+  }, [dashboard, spending, loans, debts]);
 
   if (loading && !dashboard) {
     return (
@@ -69,6 +70,28 @@ const UserAnalyticsDashboard = ({ embedded = false }) => {
       </button>
     </div>
   ) : null;
+
+  // Only show 'no data' message after all analytics data is loaded (not null)
+  const allLoaded = dashboard !== null && spending !== null && loans !== null && debts !== null;
+  const isAllEmpty =
+    allLoaded &&
+    Object.values(dashboard).every(
+      v => v === 0 || v === null || (Array.isArray(v) && v.length === 0)
+    ) &&
+    Object.keys(spending).length === 0 &&
+    Object.keys(loans).length === 0 &&
+    Object.keys(debts).length === 0;
+
+  if (allLoaded && isAllEmpty) {
+    return (
+      <div className="flex items-center justify-center h-96">
+        <div className="text-center text-gray-500 dark:text-gray-400">
+          <p className="text-lg font-semibold mb-2">No analytics data available yet</p>
+          <p className="text-sm">Once you start using your account, your analytics will appear here.</p>
+        </div>
+      </div>
+    );
+  }
 
   const content = (
     <div className="space-y-6">

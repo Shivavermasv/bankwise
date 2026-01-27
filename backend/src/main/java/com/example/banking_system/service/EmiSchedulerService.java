@@ -309,7 +309,8 @@ public class EmiSchedulerService {
      * Principal = EMI - Interest (Interest = Outstanding Principal * Monthly Rate)
      */
     private BigDecimal calculatePrincipalPortion(LoanRequest loan, BigDecimal emiAmount) {
-        double monthlyRate = loan.getInterestRate() / 12 / 100;
+        Double interestRate = loan.getInterestRate();
+        double monthlyRate = (interestRate != null ? interestRate : 0.0) / 12 / 100;
         BigDecimal interest = loan.getRemainingPrincipal()
             .multiply(BigDecimal.valueOf(monthlyRate));
         return emiAmount.subtract(interest).max(BigDecimal.ZERO);
@@ -507,21 +508,26 @@ public class EmiSchedulerService {
         java.util.List<EmiScheduleItem> schedule = new java.util.ArrayList<>();
         
         BigDecimal remainingPrincipal = loan.getAmount();
-        double monthlyRate = loan.getInterestRate() / 12 / 100;
+        Double interestRate = loan.getInterestRate();
+        double monthlyRate = (interestRate != null ? interestRate : 0.0) / 12 / 100;
         BigDecimal emiAmount = loan.getEmiAmount();
         LocalDate emiDate = loan.getApprovalDate() != null 
             ? loan.getApprovalDate().plusMonths(1) 
             : LocalDate.now().plusMonths(1);
         
         int dayOfMonth = loan.getEmiDayOfMonth() != null ? loan.getEmiDayOfMonth() : 1;
+        Integer totalEmis = loan.getTotalEmis();
+        int total = totalEmis != null ? totalEmis : 0;
+        Integer emisPaid = loan.getEmisPaid();
+        int paid = emisPaid != null ? emisPaid : 0;
         
-        for (int i = 1; i <= loan.getTotalEmis(); i++) {
+        for (int i = 1; i <= total; i++) {
             BigDecimal interest = remainingPrincipal.multiply(BigDecimal.valueOf(monthlyRate))
                 .setScale(2, java.math.RoundingMode.HALF_UP);
             BigDecimal principal = emiAmount.subtract(interest);
             remainingPrincipal = remainingPrincipal.subtract(principal).max(BigDecimal.ZERO);
             
-            boolean isPaid = i <= loan.getEmisPaid();
+            boolean isPaid = i <= paid;
             
             schedule.add(new EmiScheduleItem(
                 i,

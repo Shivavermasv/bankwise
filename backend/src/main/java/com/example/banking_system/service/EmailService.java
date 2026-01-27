@@ -1,31 +1,62 @@
 package com.example.banking_system.service;
 
-import jakarta.mail.MessagingException;
-import jakarta.mail.internet.MimeMessage;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.core.io.ByteArrayResource;
-import org.springframework.mail.MailException;
-import org.springframework.mail.SimpleMailMessage;
-import org.springframework.mail.javamail.JavaMailSender;
-import org.springframework.mail.javamail.MimeMessageHelper;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.retry.annotation.Backoff;
 import org.springframework.retry.annotation.Recover;
 import org.springframework.retry.annotation.Retryable;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
+import sendinblue.ApiClient;
+import sendinblue.ApiException;
+import sendinblue.Configuration;
+import sendinblue.auth.ApiKeyAuth;
+import sibApi.TransactionalEmailsApi;
+import sibModel.CreateSmtpEmail;
+import sibModel.SendSmtpEmail;
+import sibModel.SendSmtpEmailAttachment;
+import sibModel.SendSmtpEmailSender;
+import sibModel.SendSmtpEmailTo;
+
+import jakarta.annotation.PostConstruct;
+import java.util.Base64;
+import java.util.Collections;
+import java.util.List;
 
 /**
- * Email service with retry capability and async execution.
- * Emails are sent asynchronously to avoid blocking API responses.
- * Failed emails are retried up to 3 times with exponential backoff.
+ * Email service using Brevo (Sendinblue) API.
+ * Brevo offers 300 free transactional emails per day.
+ * Works on cloud platforms like Render where SMTP is blocked.
  */
 @Service
-@RequiredArgsConstructor
 @Slf4j
 public class EmailService {
 
-    private final JavaMailSender mailSender;
+    @Value("${brevo.api.key:}")
+    private String brevoApiKey;
+
+    @Value("${brevo.sender.email:noreply@bankwise.com}")
+    private String senderEmail;
+
+    @Value("${brevo.sender.name:BankWise}")
+    private String senderName;
+
+    private TransactionalEmailsApi emailApi;
+    private boolean isConfigured = false;
+
+    @PostConstruct
+    public void init() {
+        if (brevoApiKey != null && !brevoApiKey.isBlank()) {
+            ApiClient defaultClient = Configuration.getDefaultApiClient();
+            ApiKeyAuth apiKey = (ApiKeyAuth) defaultClient.getAuthentication("api-key");
+            apiKey.setApiKey(brevoApiKey);
+            emailApi = new TransactionalEmailsApi();
+            isConfigured = true;
+            log.info("Brevo email service initialized successfully");
+        } else {
+            log.warn("Brevo API key not configured - emails will be logged only");
+        }
+    }
 
     /**
      * Send a simple text email asynchronously with retry support.
@@ -33,27 +64,41 @@ public class EmailService {
      */
     @Async("emailExecutor")
     @Retryable(
-        retryFor = {MailException.class, MessagingException.class},
+        retryFor = {ApiException.class, RuntimeException.class},
         maxAttempts = 3,
         backoff = @Backoff(delay = 1000, multiplier = 2)
     )
     public void sendEmail(String to, String subject, String text) {
         log.debug("Attempting to send email to={} subject={}", to, subject);
-        SimpleMailMessage message = new SimpleMailMessage();
-        message.setTo(to);
-        message.setSubject(subject);
-        message.setText(text);
-        mailSender.send(message);
-        log.info("Email sent successfully to={} subject={}", to, subject);
+        
+        if (!isConfigured) {
+            log.info("[EMAIL LOG] To: {} | Subject: {} | Body: {}", to, subject, text);
+            return;
+        }
+
+        try {
+            SendSmtpEmail email = new SendSmtpEmail();
+            email.setSender(createSender());
+            email.setTo(createRecipients(to));
+            email.setSubject(subject);
+            email.setTextContent(text);
+
+            CreateSmtpEmail result = emailApi.sendTransacEmail(email);
+            log.info("Email sent successfully to={} subject={} messageId={}", to, subject, result.getMessageId());
+        } catch (ApiException e) {
+            log.warn("Failed to send email to={} subject={} error={}", to, subject, e.getMessage());
+            throw new RuntimeException("Failed to send email via Brevo", e);
+        }
     }
 
     /**
      * Recovery method called when all retry attempts fail for sendEmail.
      */
     @Recover
-    public void recoverSendEmail(MailException e, String to, String subject, String text) {
+    public void recoverSendEmail(RuntimeException e, String to, String subject, String text) {
         log.error("All retry attempts failed for email to={} subject={} error={}", to, subject, e.getMessage());
-        // Could log to a dead-letter queue or database for manual retry later
+        // Log the email content so it's not lost
+        log.info("[FAILED EMAIL] To: {} | Subject: {} | Body: {}", to, subject, text);
     }
 
     /**
@@ -61,24 +106,37 @@ public class EmailService {
      */
     @Async("emailExecutor")
     @Retryable(
-        retryFor = {MailException.class, MessagingException.class},
+        retryFor = {ApiException.class, RuntimeException.class},
         maxAttempts = 3,
         backoff = @Backoff(delay = 1000, multiplier = 2)
     )
     public void sendTransactionHistoryPdf(String to, byte[] pdfBytes) {
+        log.debug("Attempting to send transaction PDF to={}", to);
+        
+        if (!isConfigured) {
+            log.info("[EMAIL LOG] PDF attachment to: {} | Size: {} bytes", to, pdfBytes.length);
+            return;
+        }
+
         try {
-            log.debug("Attempting to send transaction PDF to={}", to);
-            MimeMessage mimeMessage = mailSender.createMimeMessage();
-            MimeMessageHelper helper = new MimeMessageHelper(mimeMessage, true);
-            helper.setTo(to);
-            helper.setSubject("Monthly Transaction Statement");
-            helper.setText("Please find attached your monthly transaction statement.");
-            helper.addAttachment("transaction-history.pdf", new ByteArrayResource(pdfBytes));
-            mailSender.send(mimeMessage);
-            log.info("Transaction PDF sent successfully to={}", to);
-        } catch (MessagingException e) {
-            log.warn("Failed to send transaction PDF to={}, will retry", to, e);
-            throw new RuntimeException("Failed to send email with attachment", e);
+            SendSmtpEmail email = new SendSmtpEmail();
+            email.setSender(createSender());
+            email.setTo(createRecipients(to));
+            email.setSubject("Monthly Transaction Statement");
+            email.setTextContent("Please find attached your monthly transaction statement.");
+
+
+            // Add PDF attachment (Base64 encoded)
+            SendSmtpEmailAttachment attachment = new SendSmtpEmailAttachment();
+            attachment.setName("transaction-history.pdf");
+            attachment.setContent(Base64.getEncoder().encodeToString(pdfBytes).getBytes());
+            email.setAttachment(Collections.singletonList(attachment));
+
+            CreateSmtpEmail result = emailApi.sendTransacEmail(email);
+            log.info("Transaction PDF sent successfully to={} messageId={}", to, result.getMessageId());
+        } catch (ApiException e) {
+            log.warn("Failed to send transaction PDF to={} error={}", to, e.getMessage());
+            throw new RuntimeException("Failed to send email with attachment via Brevo", e);
         }
     }
 
@@ -95,23 +153,30 @@ public class EmailService {
      */
     @Async("emailExecutor")
     @Retryable(
-        retryFor = {MailException.class, MessagingException.class},
+        retryFor = {ApiException.class, RuntimeException.class},
         maxAttempts = 3,
         backoff = @Backoff(delay = 1000, multiplier = 2)
     )
     public void sendHtmlEmail(String to, String subject, String htmlContent) {
+        log.debug("Attempting to send HTML email to={} subject={}", to, subject);
+        
+        if (!isConfigured) {
+            log.info("[EMAIL LOG] HTML to: {} | Subject: {} | Content length: {} chars", to, subject, htmlContent.length());
+            return;
+        }
+
         try {
-            log.debug("Attempting to send HTML email to={} subject={}", to, subject);
-            MimeMessage mimeMessage = mailSender.createMimeMessage();
-            MimeMessageHelper helper = new MimeMessageHelper(mimeMessage, true, "UTF-8");
-            helper.setTo(to);
-            helper.setSubject(subject);
-            helper.setText(htmlContent, true);
-            mailSender.send(mimeMessage);
-            log.info("HTML email sent successfully to={} subject={}", to, subject);
-        } catch (MessagingException e) {
-            log.warn("Failed to send HTML email to={}, will retry", to, e);
-            throw new RuntimeException("Failed to send HTML email", e);
+            SendSmtpEmail email = new SendSmtpEmail();
+            email.setSender(createSender());
+            email.setTo(createRecipients(to));
+            email.setSubject(subject);
+            email.setHtmlContent(htmlContent);
+
+            CreateSmtpEmail result = emailApi.sendTransacEmail(email);
+            log.info("HTML email sent successfully to={} subject={} messageId={}", to, subject, result.getMessageId());
+        } catch (ApiException e) {
+            log.warn("Failed to send HTML email to={} subject={} error={}", to, subject, e.getMessage());
+            throw new RuntimeException("Failed to send HTML email via Brevo", e);
         }
     }
 
@@ -121,6 +186,20 @@ public class EmailService {
     @Recover
     public void recoverSendHtmlEmail(RuntimeException e, String to, String subject, String htmlContent) {
         log.error("All retry attempts failed for HTML email to={} subject={} error={}", to, subject, e.getMessage());
+        log.info("[FAILED EMAIL] HTML to: {} | Subject: {}", to, subject);
+    }
+
+    private SendSmtpEmailSender createSender() {
+        SendSmtpEmailSender sender = new SendSmtpEmailSender();
+        sender.setEmail(senderEmail);
+        sender.setName(senderName);
+        return sender;
+    }
+
+    private List<SendSmtpEmailTo> createRecipients(String to) {
+        SendSmtpEmailTo recipient = new SendSmtpEmailTo();
+        recipient.setEmail(to);
+        return Collections.singletonList(recipient);
     }
 }
 

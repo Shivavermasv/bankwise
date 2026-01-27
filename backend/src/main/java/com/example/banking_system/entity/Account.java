@@ -48,7 +48,7 @@ public class Account {
 
 
     // Default interestType set to 1
-    private double interestRate;
+    private Double interestRate = 0.0;
 
     @Enumerated(EnumType.STRING)
     private AccountType accountType;
@@ -61,6 +61,10 @@ public class Account {
     
     // Minimum balance requirement
     private BigDecimal minimumBalance = BigDecimal.valueOf(1000);
+
+    public Boolean getOverdraftEnabled() {
+        return overdraftEnabled != null ? overdraftEnabled : Boolean.FALSE;
+    }
 
     // Additional comments for interestType
     // 1 -> 8% / per month(amount > 5,000)

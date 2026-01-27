@@ -7,41 +7,31 @@ import com.example.banking_system.entity.LoanRequest;
 import com.example.banking_system.entity.Transaction;
 import com.example.banking_system.entity.User;
 import com.example.banking_system.enums.LoanStatus;
-import com.example.banking_system.enums.Role;
 import com.example.banking_system.enums.TransactionStatus;
 import com.example.banking_system.enums.TransactionType;
 import com.example.banking_system.enums.VerificationStatus;
-import com.example.banking_system.exception.AccountStatusException;
-import com.example.banking_system.exception.AccountNotFoundException;
-import com.example.banking_system.exception.BusinessRuleViolationException;
-import com.example.banking_system.exception.UnauthorizedAccountAccessException;
-import com.example.banking_system.service.AuditService;
-import com.example.banking_system.exception.ResourceNotFoundException;
-import com.example.banking_system.service.NotificationService;
+import com.example.banking_system.event.LoanApplicationEvent;
+import com.example.banking_system.event.LoanStatusChangedEvent;
+import com.example.banking_system.exception.*;
 import com.example.banking_system.repository.AccountRepository;
 import com.example.banking_system.repository.LoanRepo;
 import com.example.banking_system.repository.TransactionRepository;
 import com.example.banking_system.repository.UserRepository;
-import com.example.banking_system.service.EmailService;
-import com.example.banking_system.event.LoanApplicationEvent;
-import com.example.banking_system.event.LoanStatusChangedEvent;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.scheduling.annotation.Scheduled;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
-
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 
 @Service
 @RequiredArgsConstructor
@@ -118,12 +108,16 @@ public class LoanService {
     }
 
     private LoanResponseDto mapToDto(LoanRequest loan) {
-        BigDecimal emiAmount = calculateMonthlyEmi(loan.getAmount(), loan.getInterestRate(), loan.getTenureInMonths());
-        int emisPaid = loan.getEmisPaid();
-        int totalEmis = loan.getTenureInMonths();
+        // Handle null values from database
+        double interestRate = loan.getInterestRate() != null ? loan.getInterestRate() : 0.0;
+        int tenureInMonths = loan.getTenureInMonths() != null ? loan.getTenureInMonths() : 0;
+        int emisPaid = loan.getEmisPaid() != null ? loan.getEmisPaid() : 0;
+        int totalEmis = tenureInMonths;
+        
+        BigDecimal emiAmount = calculateMonthlyEmi(loan.getAmount(), interestRate, tenureInMonths);
         BigDecimal totalAmountPaid = emiAmount.multiply(BigDecimal.valueOf(emisPaid));
         BigDecimal totalPayable = emiAmount.multiply(BigDecimal.valueOf(totalEmis));
-        BigDecimal totalOutstanding = emiAmount.multiply(BigDecimal.valueOf(totalEmis - emisPaid));
+        BigDecimal totalOutstanding = emiAmount.multiply(BigDecimal.valueOf(Math.max(0, totalEmis - emisPaid)));
         
         double paidPercentage = totalEmis > 0 ? (emisPaid * 100.0) / totalEmis : 0;
         
@@ -140,8 +134,8 @@ public class LoanService {
                 .id(loan.getId())
                 .accountNumber(loan.getBankAccount().getAccountNumber())
                 .amount(loan.getAmount())
-                .tenureInMonths(loan.getTenureInMonths())
-                .interestRate(loan.getInterestRate())
+                .tenureInMonths(tenureInMonths)
+                .interestRate(interestRate)
                 .status(loan.getStatus())
                 .requestDate(loan.getRequestDate())
                 .approvalDate(loan.getApprovalDate())
@@ -259,7 +253,9 @@ public class LoanService {
             throw new BusinessRuleViolationException("Repayment amount must be positive");
         }
 
-        BigDecimal emi = calculateMonthlyEmi(loan.getAmount(), loan.getInterestRate(), loan.getTenureInMonths());
+        double interestRate = loan.getInterestRate() != null ? loan.getInterestRate() : 0.0;
+        int tenureInMonths = loan.getTenureInMonths() != null ? loan.getTenureInMonths() : 0;
+        BigDecimal emi = calculateMonthlyEmi(loan.getAmount(), interestRate, tenureInMonths);
         
         if (account.getBalance().compareTo(amount) < 0) {
             throw new BusinessRuleViolationException("Insufficient balance for repayment");
@@ -322,31 +318,35 @@ public class LoanService {
     }
 
     public Map<String, Object> getEmiDetails(Long loanId) throws ResourceNotFoundException {
-        LoanRequest loan = loanRepo.findById(loanId)
-                .orElseThrow(() -> new ResourceNotFoundException("Loan not found"));
+        LoanRequest loan = loanRepo.findByIdWithAccountAndUser(loanId)
+            .orElseThrow(() -> new ResourceNotFoundException("Loan not found"));
 
         // Verify ownership
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         String currentEmail = auth != null ? auth.getName() : null;
-        if (currentEmail == null || loan.getBankAccount().getUser() == null || 
-            !loan.getBankAccount().getUser().getEmail().equalsIgnoreCase(currentEmail)) {
+        if (loan.getBankAccount().getUser() == null ||
+                !loan.getBankAccount().getUser().getEmail().equalsIgnoreCase(currentEmail)) {
             throw new UnauthorizedAccountAccessException("You are not authorized to view this loan");
         }
 
-        BigDecimal emi = calculateMonthlyEmi(loan.getAmount(), loan.getInterestRate(), loan.getTenureInMonths());
-        int remainingEmis = loan.getTenureInMonths() - loan.getEmisPaid();
+        double loanInterestRate = loan.getInterestRate() != null ? loan.getInterestRate() : 0.0;
+        int loanTenure = loan.getTenureInMonths() != null ? loan.getTenureInMonths() : 0;
+        int loanEmisPaid = loan.getEmisPaid() != null ? loan.getEmisPaid() : 0;
+        
+        BigDecimal emi = calculateMonthlyEmi(loan.getAmount(), loanInterestRate, loanTenure);
+        int remainingEmis = Math.max(0, loanTenure - loanEmisPaid);
         BigDecimal totalOutstanding = emi.multiply(BigDecimal.valueOf(remainingEmis));
 
         // Calculate next EMI date (1st of next month from approval)
         LocalDate nextEmiDate = loan.getApprovalDate() != null 
-            ? loan.getApprovalDate().plusMonths(loan.getEmisPaid() + 1).withDayOfMonth(1)
+            ? loan.getApprovalDate().plusMonths(loanEmisPaid + 1).withDayOfMonth(1)
             : LocalDate.now().plusMonths(1).withDayOfMonth(1);
 
         return Map.of(
             "loanId", loan.getId(),
             "emiAmount", emi,
-            "emisPaid", loan.getEmisPaid(),
-            "totalEmis", loan.getTenureInMonths(),
+            "emisPaid", loanEmisPaid,
+            "totalEmis", loanTenure,
             "remainingEmis", remainingEmis,
             "totalOutstanding", totalOutstanding,
             "nextEmiDate", nextEmiDate,
@@ -364,7 +364,9 @@ public class LoanService {
         if (reminderDate.getDayOfMonth() == targetDay) {
             for (LoanRequest loan : loanRepo.findAllByStatus(LoanStatus.APPROVED)) {
                 String userEmail = loan.getBankAccount().getUser().getEmail();
-                BigDecimal emi = calculateMonthlyEmi(loan.getAmount(), loan.getInterestRate(), loan.getTenureInMonths());
+                double loanRate = loan.getInterestRate() != null ? loan.getInterestRate() : 0.0;
+                int loanMonths = loan.getTenureInMonths() != null ? loan.getTenureInMonths() : 0;
+                BigDecimal emi = calculateMonthlyEmi(loan.getAmount(), loanRate, loanMonths);
                 
                 notificationService.sendNotification(userEmail,
                         "⏰ EMI Reminder: Your EMI of ₹" + emi + " for loan #" + loan.getId() + 
@@ -390,11 +392,11 @@ public class LoanService {
             Account account = loan.getBankAccount();
             String userEmail = account.getUser().getEmail();
 
-            BigDecimal emi = calculateMonthlyEmi(
-                    loan.getAmount(),
-                    loan.getInterestRate(),
-                    loan.getTenureInMonths()
-            );
+            double loanRate = loan.getInterestRate() != null ? loan.getInterestRate() : 0.0;
+            int loanMonths = loan.getTenureInMonths() != null ? loan.getTenureInMonths() : 0;
+            int paidEmis = loan.getEmisPaid() != null ? loan.getEmisPaid() : 0;
+            
+            BigDecimal emi = calculateMonthlyEmi(loan.getAmount(), loanRate, loanMonths);
 
             BigDecimal balance = account.getBalance();
             if (balance.compareTo(emi) >= 0) {
@@ -413,7 +415,7 @@ public class LoanService {
                 transactionRepository.save(transaction);
                 loan.incrementEmisPaid();
 
-                if (loan.getEmisPaid() >= loan.getTenureInMonths()) {
+                if ((paidEmis + 1) >= loanMonths) {
                     loan.setStatus(LoanStatus.CLOSED);
 
                                         auditService.recordSystem("LOAN_CLOSED", "LOAN", String.valueOf(loan.getId()), "CLOSED",
@@ -472,7 +474,13 @@ public class LoanService {
     }
 
     private BigDecimal calculateMonthlyEmi(BigDecimal principal, double annualRate, int tenureInMonths) {
+        if (principal == null || tenureInMonths <= 0) {
+            return BigDecimal.ZERO;
+        }
         double r = annualRate / 12 / 100; // monthly rate
+        if (r <= 0) {
+            return principal.divide(BigDecimal.valueOf(tenureInMonths), 2, RoundingMode.HALF_UP);
+        }
         double emi = (principal.doubleValue() * r * Math.pow(1 + r, tenureInMonths)) /
                 (Math.pow(1 + r, tenureInMonths) - 1);
         return BigDecimal.valueOf(emi).setScale(2, RoundingMode.HALF_UP);
