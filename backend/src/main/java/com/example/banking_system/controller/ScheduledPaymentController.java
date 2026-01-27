@@ -164,6 +164,18 @@ public class ScheduledPaymentController {
         return account;
     }
 
+    @GetMapping("/upcoming")
+    public ResponseEntity<List<ScheduledPayment>> getUpcomingPayments(
+            Authentication auth,
+            @RequestParam(defaultValue = "7") int days
+    ) {
+        String email = auth.getName();
+        return ResponseEntity.ok(
+                scheduledPaymentService.getUpcomingPayments(email, days)
+        );
+    }
+
+
     public record ScheduleTransferRequest(
         Long fromAccountId,
         String toAccountNumber,

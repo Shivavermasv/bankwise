@@ -152,6 +152,20 @@ const EmiManagement = ({ embedded = false }) => {
       )}
     </div>
   );
+  // If embedded, just return the content
+  if (embedded) {
+    return content;
+  }
+
+  // Otherwise, wrap with page layout
+  return (
+    <div className={`min-h-screen pt-16 px-4 pb-10 ${theme === 'dark' ? 'bg-slate-900' : 'bg-[linear-gradient(135deg,#f0fdfa_0%,#e0e7ff_100%)]'}`}>
+      <Navbar />
+      <div className="max-w-4xl mx-auto pt-6">
+        {content}
+      </div>
+    </div>
+  );
 };
 
 // Summary Card
@@ -466,21 +480,6 @@ const LoanCard = ({ loan, isSelected, onSelect, schedule, scheduleLoading, token
           </div>
         </div>
       )}
-    </div>
-  );
-
-  // If embedded, just return the content
-  if (embedded) {
-    return content;
-  }
-
-  // Otherwise, wrap with page layout
-  return (
-    <div className={`min-h-screen pt-16 px-4 pb-10 ${theme === 'dark' ? 'bg-slate-900' : 'bg-[linear-gradient(135deg,#f0fdfa_0%,#e0e7ff_100%)]'}`}>
-      <Navbar />
-      <div className="max-w-4xl mx-auto pt-6">
-        {content}
-      </div>
     </div>
   );
 };

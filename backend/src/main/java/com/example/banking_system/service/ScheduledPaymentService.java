@@ -283,4 +283,10 @@ public class ScheduledPaymentService {
             log.error("Failed to send payment failure email: {}", e.getMessage());
         }
     }
+
+    public List<ScheduledPayment> getUpcomingPayments(String email, int days) {
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new RuntimeException("User not found"));
+        return scheduledPaymentRepository.findActiveBillPaymentsByUser(user);
+    }
 }
