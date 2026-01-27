@@ -1,7 +1,7 @@
 // Centralized API client wrapper to handle auth headers, error envelope parsing,
 // idempotent responses, and defaulting numeric analytics fields.
 
-export const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8091';
+export const API_BASE = import.meta.env.VITE_API_BASE_URL ;
 
 // Global loading tracking
 let activeRequests = 0;
