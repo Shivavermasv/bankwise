@@ -31,13 +31,13 @@ public class ScheduledPaymentService {
     private final TransactionService transactionService;
     private final NotificationService notificationService;
     private final EmailService emailService;
+    private final CachedDataService cachedDataService;
 
     /**
      * Get all scheduled payments for a user
      */
     public List<ScheduledPayment> getScheduledPayments(String userEmail) {
-        User user = userRepository.findByEmail(userEmail)
-                .orElseThrow(() -> new RuntimeException("User not found"));
+        User user = cachedDataService.getUserByEmail(userEmail);
         return scheduledPaymentRepository.findByUserOrderByNextExecutionDateAsc(user);
     }
 
@@ -45,8 +45,7 @@ public class ScheduledPaymentService {
      * Get active scheduled payments
      */
     public List<ScheduledPayment> getActivePayments(String userEmail) {
-        User user = userRepository.findByEmail(userEmail)
-                .orElseThrow(() -> new RuntimeException("User not found"));
+        User user = cachedDataService.getUserByEmail(userEmail);
         return scheduledPaymentRepository.findByUserAndStatusOrderByNextExecutionDateAsc(user, ScheduledPaymentStatus.ACTIVE);
     }
 
@@ -59,19 +58,16 @@ public class ScheduledPaymentService {
                                               BigDecimal amount, String description,
                                               PaymentFrequency frequency, LocalDate startDate,
                                               LocalDate endDate, Integer maxExecutions) {
-        User user = userRepository.findByEmail(userEmail)
-                .orElseThrow(() -> new RuntimeException("User not found"));
+        User user = cachedDataService.getUserByEmail(userEmail);
 
-        Account fromAccount = accountRepository.findByAccountNumber(fromAccountNumber)
-                .orElseThrow(() -> new RuntimeException("From account not found"));
+        Account fromAccount = cachedDataService.getAccountByNumber(fromAccountNumber);
 
         if (!fromAccount.getUser().getId().equals(user.getId())) {
             throw new RuntimeException("Account does not belong to user");
         }
 
         // Validate to account exists
-        accountRepository.findByAccountNumber(toAccountNumber)
-                .orElseThrow(() -> new RuntimeException("Recipient account not found"));
+        cachedDataService.getAccountByNumber(toAccountNumber);
 
         ScheduledPayment payment = ScheduledPayment.builder()
                 .user(user)
@@ -101,11 +97,9 @@ public class ScheduledPaymentService {
                                                  String billerId, String consumerNumber,
                                                  BigDecimal amount, PaymentFrequency frequency,
                                                  LocalDate startDate, LocalDate endDate) {
-        User user = userRepository.findByEmail(userEmail)
-                .orElseThrow(() -> new RuntimeException("User not found"));
+        User user = cachedDataService.getUserByEmail(userEmail);
 
-        Account fromAccount = accountRepository.findByAccountNumber(fromAccountNumber)
-                .orElseThrow(() -> new RuntimeException("From account not found"));
+        Account fromAccount = cachedDataService.getAccountByNumber(fromAccountNumber);
 
         if (!fromAccount.getUser().getId().equals(user.getId())) {
             throw new RuntimeException("Account does not belong to user");
@@ -169,8 +163,7 @@ public class ScheduledPaymentService {
      * Get upcoming payments summary
      */
     public Map<String, Object> getUpcomingSummary(String userEmail) {
-        User user = userRepository.findByEmail(userEmail)
-                .orElseThrow(() -> new RuntimeException("User not found"));
+        User user = cachedDataService.getUserByEmail(userEmail);
 
         LocalDate today = LocalDate.now();
         LocalDate nextWeek = today.plusWeeks(1);
@@ -244,8 +237,7 @@ public class ScheduledPaymentService {
     }
 
     private ScheduledPayment getAndValidatePayment(String userEmail, Long paymentId) {
-        User user = userRepository.findByEmail(userEmail)
-                .orElseThrow(() -> new RuntimeException("User not found"));
+        User user = cachedDataService.getUserByEmail(userEmail);
 
         ScheduledPayment payment = scheduledPaymentRepository.findById(paymentId)
                 .orElseThrow(() -> new RuntimeException("Scheduled payment not found"));
@@ -285,8 +277,7 @@ public class ScheduledPaymentService {
     }
 
     public List<ScheduledPayment> getUpcomingPayments(String email, int days) {
-        User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new RuntimeException("User not found"));
+        User user = cachedDataService.getUserByEmail(email);
         return scheduledPaymentRepository.findActiveBillPaymentsByUser(user);
     }
 }

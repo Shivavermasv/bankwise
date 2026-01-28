@@ -5,11 +5,9 @@ import com.example.banking_system.entity.Account;
 import com.example.banking_system.entity.User;
 import com.example.banking_system.enums.AccountType;
 import com.example.banking_system.enums.Role;
-import com.example.banking_system.service.NotificationService;
+import com.example.banking_system.exception.BusinessRuleViolationException;
 import com.example.banking_system.repository.AccountRepository;
 import com.example.banking_system.repository.UserRepository;
-import com.example.banking_system.service.AuditService;
-import com.example.banking_system.exception.BusinessRuleViolationException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -20,7 +18,6 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.util.Base64;
-import java.util.List;
 
 
 @Service
@@ -45,9 +42,6 @@ public class UserService {
 
     private static final long OTP_SESSION_TTL = 10 * 60;
 
-    public List<User> getUser() {
-        return userRepository.findAll();
-    }
 
     public User getUser(String userName){
         return userRepository.findByEmail(userName).orElseThrow(() -> new UsernameNotFoundException("User not found with email: " + userName));

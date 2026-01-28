@@ -9,19 +9,18 @@ import org.springframework.data.repository.query.Param;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.List;
 
-public interface TransactionRepository extends JpaRepository<Transaction,Long> {
+public interface TransactionRepository extends JpaRepository<Transaction, Long> {
 
-    /**
-     * Find transactions by account and date range with eager loading of related accounts.
-     * Uses JOIN FETCH to avoid N+1 query issues.
-     */
-    @Query("SELECT t FROM Transaction t " +
-           "LEFT JOIN FETCH t.sourceAccount sa " +
-           "LEFT JOIN FETCH t.destinationAccount da " +
-           "WHERE (sa.accountNumber = :accountNumber OR da.accountNumber = :accountNumber) " +
-           "AND t.timestamp BETWEEN :startDate AND :endDate " +
-           "ORDER BY t.timestamp DESC")
+    @Query("""
+                SELECT t FROM Transaction t
+                LEFT JOIN FETCH t.sourceAccount sa
+                LEFT JOIN FETCH t.destinationAccount da
+                WHERE (sa.accountNumber = :accountNumber OR da.accountNumber = :accountNumber)
+                AND t.timestamp BETWEEN :startDate AND :endDate
+                ORDER BY t.timestamp DESC
+            """)
     Page<Transaction> findByAccountAndDateRange(
             @Param("accountNumber") String accountNumber,
             @Param("startDate") LocalDateTime start,
@@ -29,87 +28,150 @@ public interface TransactionRepository extends JpaRepository<Transaction,Long> {
             Pageable pageable
     );
 
-    /**
-     * Optimized aggregate query using database-level SUM.
-     */
-    @Query("SELECT COALESCE(SUM(t.amount), 0) FROM Transaction t WHERE t.status = 'SUCCESS'")
+    @Query("""
+                SELECT COALESCE(SUM(t.amount), 0)
+                FROM Transaction t
+                WHERE t.status = com.example.banking_system.enums.TransactionStatus.SUCCESS
+            """)
     BigDecimal totalSuccessfulTransactionVolume();
 
-    long deleteBySourceAccount_AccountNumber(String accountNumber);
+    void deleteBySourceAccount_AccountNumber(String accountNumber);
 
-    long deleteByDestinationAccount_AccountNumber(String accountNumber);
+    void deleteByDestinationAccount_AccountNumber(String accountNumber);
 
-    /**
-     * Optimized daily transfer sum query with indexed columns.
-     */
-    @Query("SELECT COALESCE(SUM(t.amount), 0) FROM Transaction t " +
-           "WHERE t.sourceAccount.accountNumber = :accountNumber " +
-           "AND t.type = com.example.banking_system.enums.TransactionType.TRANSFER " +
-           "AND t.status = com.example.banking_system.enums.TransactionStatus.SUCCESS " +
-           "AND t.timestamp BETWEEN :startDate AND :endDate")
+    @Query("""
+                SELECT COALESCE(SUM(t.amount), 0)
+                FROM Transaction t
+                WHERE t.sourceAccount.accountNumber = :accountNumber
+                AND t.type = com.example.banking_system.enums.TransactionType.TRANSFER
+                AND t.status = com.example.banking_system.enums.TransactionStatus.SUCCESS
+                AND t.timestamp BETWEEN :startDate AND :endDate
+            """)
     BigDecimal sumDailyTransfers(
-        @Param("accountNumber") String accountNumber,
-        @Param("startDate") LocalDateTime startDate,
-        @Param("endDate") LocalDateTime endDate
+            @Param("accountNumber") String accountNumber,
+            @Param("startDate") LocalDateTime startDate,
+            @Param("endDate") LocalDateTime endDate
     );
 
-    /**
-     * Count transactions by status for dashboard metrics.
-     */
-    @Query("SELECT COUNT(t) FROM Transaction t WHERE t.status = :status")
-    long countByStatus(@Param("status") com.example.banking_system.enums.TransactionStatus status);
+    @Query("""
+                SELECT COUNT(t)
+                FROM Transaction t
+                WHERE t.status = :status
+            """)
+    long countByStatus(
+            @Param("status") com.example.banking_system.enums.TransactionStatus status
+    );
 
-    /**
-     * Get recent transactions with eager loading for performance.
-     */
-    @Query("SELECT t FROM Transaction t " +
-           "LEFT JOIN FETCH t.sourceAccount sa " +
-           "LEFT JOIN FETCH t.destinationAccount da " +
-           "WHERE t.timestamp >= :since " +
-           "ORDER BY t.timestamp DESC")
+    @Query("""
+                SELECT t FROM Transaction t
+                LEFT JOIN FETCH t.sourceAccount
+                LEFT JOIN FETCH t.destinationAccount
+                WHERE t.timestamp >= :since
+                ORDER BY t.timestamp DESC
+            """)
     Page<Transaction> findRecentTransactions(
-        @Param("since") LocalDateTime since,
-        Pageable pageable
+            @Param("since") LocalDateTime since,
+            Pageable pageable
     );
 
-    /**
-     * Find outgoing transactions (debits) from an account after a date.
-     */
-    @Query("SELECT t FROM Transaction t WHERE t.sourceAccount.accountNumber = :accountNumber AND t.timestamp >= :since ORDER BY t.timestamp DESC")
-    java.util.List<Transaction> findByFromAccountAndTimestampAfter(
-        @Param("accountNumber") String accountNumber,
-        @Param("since") LocalDateTime since
+    @Query("""
+                SELECT t FROM Transaction t
+                WHERE t.sourceAccount.accountNumber = :accountNumber
+                AND t.timestamp >= :since
+                ORDER BY t.timestamp DESC
+            """)
+    List<Transaction> findByFromAccountAndTimestampAfter(
+            @Param("accountNumber") String accountNumber,
+            @Param("since") LocalDateTime since
     );
 
-    /**
-     * Find incoming transactions (credits) to an account after a date.
-     */
-    @Query("SELECT t FROM Transaction t WHERE t.destinationAccount.accountNumber = :accountNumber AND t.timestamp >= :since ORDER BY t.timestamp DESC")
-    java.util.List<Transaction> findByToAccountAndTimestampAfter(
-        @Param("accountNumber") String accountNumber,
-        @Param("since") LocalDateTime since
+    @Query("""
+                SELECT t FROM Transaction t
+                WHERE t.destinationAccount.accountNumber = :accountNumber
+                AND t.timestamp >= :since
+                ORDER BY t.timestamp DESC
+            """)
+    List<Transaction> findByToAccountAndTimestampAfter(
+            @Param("accountNumber") String accountNumber,
+            @Param("since") LocalDateTime since
     );
 
-    /**
-     * Find outgoing transactions between dates.
-     */
-    @Query("SELECT t FROM Transaction t WHERE t.sourceAccount.accountNumber = :accountNumber AND t.timestamp BETWEEN :startDate AND :endDate ORDER BY t.timestamp DESC")
-    java.util.List<Transaction> findByFromAccountAndTimestampBetween(
-        @Param("accountNumber") String accountNumber,
-        @Param("startDate") LocalDateTime startDate,
-        @Param("endDate") LocalDateTime endDate
+    @Query("""
+                SELECT t FROM Transaction t
+                WHERE t.sourceAccount.accountNumber = :accountNumber
+                AND t.timestamp BETWEEN :startDate AND :endDate
+                ORDER BY t.timestamp DESC
+            """)
+    List<Transaction> findByFromAccountAndTimestampBetween(
+            @Param("accountNumber") String accountNumber,
+            @Param("startDate") LocalDateTime startDate,
+            @Param("endDate") LocalDateTime endDate
     );
 
-    /**
-     * Find incoming transactions between dates.
-     */
-    @Query("SELECT t FROM Transaction t WHERE t.destinationAccount.accountNumber = :accountNumber AND t.timestamp BETWEEN :startDate AND :endDate ORDER BY t.timestamp DESC")
-    java.util.List<Transaction> findByToAccountAndTimestampBetween(
-        @Param("accountNumber") String accountNumber,
-        @Param("startDate") LocalDateTime startDate,
-        @Param("endDate") LocalDateTime endDate
+    @Query("""
+                SELECT t FROM Transaction t
+                WHERE t.destinationAccount.accountNumber = :accountNumber
+                AND t.timestamp BETWEEN :startDate AND :endDate
+                ORDER BY t.timestamp DESC
+            """)
+    List<Transaction> findByToAccountAndTimestampBetween(
+            @Param("accountNumber") String accountNumber,
+            @Param("startDate") LocalDateTime startDate,
+            @Param("endDate") LocalDateTime endDate
+    );
+
+    @Query("""
+                SELECT
+                  FUNCTION('to_char', t.timestamp, 'YYYY-MM'),
+                  SUM(CASE WHEN t.sourceAccount.accountNumber = :acc THEN t.amount ELSE 0 END),
+                  SUM(CASE WHEN t.destinationAccount.accountNumber = :acc THEN t.amount ELSE 0 END)
+                FROM Transaction t
+                WHERE t.timestamp >= :from
+                GROUP BY FUNCTION('to_char', t.timestamp, 'YYYY-MM')
+                ORDER BY FUNCTION('to_char', t.timestamp, 'YYYY-MM')
+            """)
+    List<Object[]> monthlySummary(
+            @Param("acc") String acc,
+            @Param("from") LocalDateTime from
+    );
+
+    @Query("""
+                SELECT COALESCE(SUM(t.amount), 0)
+                FROM Transaction t
+                WHERE t.sourceAccount.accountNumber = :acc
+                AND t.timestamp >= :from
+            """)
+    BigDecimal sumDebitsAfter(
+            @Param("acc") String acc,
+            @Param("from") LocalDateTime from
+    );
+
+    @Query("""
+                SELECT COALESCE(SUM(t.amount), 0)
+                FROM Transaction t
+                WHERE t.destinationAccount.accountNumber = :acc
+                AND t.timestamp >= :from
+            """)
+    BigDecimal sumCreditsAfter(
+            @Param("acc") String acc,
+            @Param("from") LocalDateTime from
+    );
+
+    @Query("""
+                SELECT COUNT(t)
+                FROM Transaction t
+                WHERE (
+                    t.sourceAccount.accountNumber = :acc
+                    OR t.destinationAccount.accountNumber = :acc
+                )
+                AND t.timestamp >= :from
+            """)
+    long countTransactionsAfter(
+            @Param("acc") String acc,
+            @Param("from") LocalDateTime from
     );
 }
+
 
 
 

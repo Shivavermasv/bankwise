@@ -1,17 +1,17 @@
 package com.example.banking_system.config;
 
-import org.springframework.cache.CacheManager;
 import org.springframework.cache.annotation.EnableCaching;
-import org.springframework.cache.concurrent.ConcurrentMapCache;
-import org.springframework.cache.support.SimpleCacheManager;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.scheduling.annotation.EnableScheduling;
-import org.springframework.scheduling.annotation.Scheduled;
+import org.springframework.data.redis.cache.RedisCacheConfiguration;
+import org.springframework.data.redis.cache.RedisCacheManager;
+import org.springframework.data.redis.connection.RedisConnectionFactory;
+import org.springframework.data.redis.serializer.GenericJackson2JsonRedisSerializer;
+import org.springframework.data.redis.serializer.RedisSerializationContext;
 
-import java.util.Arrays;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentMap;
+import java.time.Duration;
+import java.util.HashMap;
+import java.util.Map;
 
 /**
  * Cache configuration for improved response times.
@@ -19,58 +19,31 @@ import java.util.concurrent.ConcurrentMap;
  */
 @Configuration
 @EnableCaching
-@EnableScheduling
 public class CacheConfig {
 
-    // Cache statistics for monitoring
-    private static final ConcurrentMap<String, CacheStats> cacheStats = new ConcurrentHashMap<>();
-
     @Bean
-    public CacheManager cacheManager() {
-        SimpleCacheManager cacheManager = new SimpleCacheManager();
-        cacheManager.setCaches(Arrays.asList(
-            new ConcurrentMapCache("users"),
-            new ConcurrentMapCache("accounts"),
-            new ConcurrentMapCache("accountBalances"),
-            new ConcurrentMapCache("userByEmail"),
-            new ConcurrentMapCache("accountByNumber"),
-            new ConcurrentMapCache("interestRates"),
-            new ConcurrentMapCache("systemConfig"),
-            new ConcurrentMapCache("dataVersions")
-        ));
-        return cacheManager;
-    }
+    public RedisCacheManager cacheManager(RedisConnectionFactory factory) {
 
-    // Cache eviction every 5 minutes for stale data prevention
-    @Scheduled(fixedRate = 300000)
-    public void evictAllCaches() {
-        // Evict less critical caches periodically
-        // Critical caches are evicted on data change
-    }
+        RedisCacheConfiguration defaultConfig =
+                RedisCacheConfiguration.defaultCacheConfig()
+                        .disableCachingNullValues()
+                        .serializeValuesWith(
+                                RedisSerializationContext.SerializationPair.fromSerializer(
+                                        new GenericJackson2JsonRedisSerializer()
+                                )
+                        )
+                        .prefixCacheNameWith("bankwise::");
 
-    public static void recordCacheHit(String cacheName) {
-        cacheStats.computeIfAbsent(cacheName, k -> new CacheStats()).recordHit();
-    }
+        Map<String, RedisCacheConfiguration> configs = new HashMap<>();
 
-    public static void recordCacheMiss(String cacheName) {
-        cacheStats.computeIfAbsent(cacheName, k -> new CacheStats()).recordMiss();
-    }
+        configs.put("userAnalytics", defaultConfig.entryTtl(Duration.ofMinutes(5)));
+        configs.put("adminDashboard", defaultConfig.entryTtl(Duration.ofMinutes(2)));
+        configs.put("accountListForAdmin", defaultConfig.entryTtl(Duration.ofMinutes(1)));
+        configs.put("depositRequestList", defaultConfig.entryTtl(Duration.ofMinutes(2)));
 
-    public static ConcurrentMap<String, CacheStats> getCacheStats() {
-        return cacheStats;
-    }
-
-    public static class CacheStats {
-        private long hits = 0;
-        private long misses = 0;
-
-        public synchronized void recordHit() { hits++; }
-        public synchronized void recordMiss() { misses++; }
-        public long getHits() { return hits; }
-        public long getMisses() { return misses; }
-        public double getHitRate() {
-            long total = hits + misses;
-            return total > 0 ? (double) hits / total * 100 : 0;
-        }
+        return RedisCacheManager.builder(factory)
+                .cacheDefaults(defaultConfig)
+                .withInitialCacheConfigurations(configs)
+                .build();
     }
 }

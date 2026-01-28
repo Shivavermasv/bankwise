@@ -60,6 +60,7 @@ public interface LoanRepo extends JpaRepository<LoanRequest, Long> {
 
     @Query("SELECT l FROM LoanRequest l WHERE l.status IN ('APPROVED', 'ACTIVE') AND l.nextEmiDate = ?1")
     List<LoanRequest> findLoansWithEmiDueOn(LocalDate date);
+
 }
 
 

@@ -8,7 +8,6 @@ import io.jsonwebtoken.SignatureAlgorithm;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.RandomStringUtils;
-import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.stereotype.Service;
 
 import java.nio.charset.StandardCharsets;
@@ -22,14 +21,14 @@ public class OtpService {
 
     private final UserRepository userRepository;
     private final EmailService emailService;
+    private final CachedDataService cachedDataService;
 
 
     private final Map<String, String> otpMap = new ConcurrentHashMap<>();
     private final Set<String> verifiedUsers = Collections.synchronizedSet(new HashSet<>());
 
     public User getUser(String userName) {
-        return userRepository.findByEmail(userName)
-                .orElseThrow(() -> new UsernameNotFoundException("User not found with email: " + userName));
+        return cachedDataService.getUserByEmail(userName);
     }
 
 

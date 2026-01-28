@@ -7,41 +7,30 @@ import com.example.banking_system.entity.Transaction;
 import com.example.banking_system.enums.TransactionStatus;
 import com.example.banking_system.enums.TransactionType;
 import com.example.banking_system.enums.VerificationStatus;
+import com.example.banking_system.event.TransferCompletedEvent;
 import com.example.banking_system.exception.AccountStatusException;
 import com.example.banking_system.exception.BusinessRuleViolationException;
 import com.example.banking_system.exception.InsufficientFundsException;
 import com.example.banking_system.exception.UnauthorizedAccountAccessException;
-import com.example.banking_system.service.AuditService;
-import com.example.banking_system.service.NotificationService;
 import com.example.banking_system.repository.AccountRepository;
 import com.example.banking_system.repository.TransactionRepository;
-import com.example.banking_system.service.EmailService;
-import com.example.banking_system.event.TransferCompletedEvent;
-import org.springframework.context.ApplicationEventPublisher;
-import com.itextpdf.text.BaseColor;
-import com.itextpdf.text.Chunk;
-import com.itextpdf.text.Document;
-import com.itextpdf.text.DocumentException;
-import com.itextpdf.text.Element;
-import com.itextpdf.text.Font;
-import com.itextpdf.text.FontFactory;
-import com.itextpdf.text.PageSize;
-import com.itextpdf.text.Paragraph;
+import com.itextpdf.text.*;
 import com.itextpdf.text.pdf.PdfPCell;
 import com.itextpdf.text.pdf.PdfPTable;
 import com.itextpdf.text.pdf.PdfWriter;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.scheduling.annotation.Scheduled;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.io.ByteArrayOutputStream;
 import java.math.BigDecimal;
@@ -85,6 +74,9 @@ public class TransactionService {
     @Value("${bankwise.transfer.daily-limit:100000}")
     private BigDecimal dailyTransferLimit;
 
+    @Autowired
+    private CachedDataService cachedDataService;
+
     @Transactional
     public String processTransaction(TransferRequestDto transferRequestDto) {
         log.info("Processing transfer from={} to={} amount={}", transferRequestDto.getFromAccount(), transferRequestDto.getToAccount(), transferRequestDto.getAmount());
@@ -102,16 +94,12 @@ public class TransactionService {
             transferRequestDto.getFromAccount().equals(transferRequestDto.getToAccount())) {
             throw new BusinessRuleViolationException("Cannot transfer to your own account");
         }
-        Account fromAccount = accountRepository
-                .findByAccountNumber(transferRequestDto.getFromAccount())
-                .orElseThrow(() -> new RuntimeException("From account not found"));
-        Account toAccount = accountRepository
-                .findByAccountNumber(transferRequestDto.getToAccount())
-                .orElseThrow(() -> new RuntimeException("To account not found"));
+        Account fromAccount = cachedDataService.getAccountByNumber(transferRequestDto.getFromAccount());
+        Account toAccount = cachedDataService.getAccountByNumber(transferRequestDto.getToAccount());
 
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         String currentEmail = auth != null ? auth.getName() : null;
-        if (currentEmail == null || fromAccount.getUser() == null || !fromAccount.getUser().getEmail().equalsIgnoreCase(currentEmail)) {
+        if (fromAccount.getUser() == null || !fromAccount.getUser().getEmail().equalsIgnoreCase(currentEmail)) {
             auditService.record("TRANSFER", "ACCOUNT", transferRequestDto.getFromAccount(), "DENIED", "Ownership validation failed");
             throw new UnauthorizedAccountAccessException("You are not authorized to transfer from this account");
         }
@@ -181,9 +169,8 @@ public class TransactionService {
                                                        LocalDate startDate, LocalDate endDate) {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         String currentEmail = auth != null ? auth.getName() : null;
-        Account account = accountRepository.findByAccountNumber(accountNumber)
-                .orElseThrow(() -> new UnauthorizedAccountAccessException("Account not found"));
-        if (currentEmail == null || account.getUser() == null || !account.getUser().getEmail().equalsIgnoreCase(currentEmail)) {
+        Account account = cachedDataService.getAccountByNumber(accountNumber);
+        if (account.getUser() == null || !account.getUser().getEmail().equalsIgnoreCase(currentEmail)) {
             throw new UnauthorizedAccountAccessException("You are not authorized to access this account");
         }
         Pageable pageable = PageRequest.of(page, pageSize);

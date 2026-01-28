@@ -5,27 +5,25 @@ import com.example.banking_system.dto.DepositResponseDto;
 import com.example.banking_system.entity.Account;
 import com.example.banking_system.entity.DepositRequest;
 import com.example.banking_system.entity.Transaction;
-import com.example.banking_system.entity.User;
 import com.example.banking_system.enums.DepositStatus;
-import com.example.banking_system.enums.Role;
 import com.example.banking_system.enums.TransactionStatus;
 import com.example.banking_system.enums.TransactionType;
 import com.example.banking_system.enums.VerificationStatus;
+import com.example.banking_system.event.DepositProcessedEvent;
 import com.example.banking_system.exception.AccountStatusException;
 import com.example.banking_system.exception.DepositRequestNotFoundException;
 import com.example.banking_system.exception.InvalidDepositActionException;
 import com.example.banking_system.exception.UnauthorizedAccountAccessException;
-import com.example.banking_system.service.AuditService;
-import com.example.banking_system.service.NotificationService;
 import com.example.banking_system.repository.AccountRepository;
 import com.example.banking_system.repository.DepositRepository;
 import com.example.banking_system.repository.TransactionRepository;
 import com.example.banking_system.repository.UserRepository;
-import com.example.banking_system.event.DepositProcessedEvent;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.dao.OptimisticLockingFailureException;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -34,8 +32,6 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Locale;
 import java.util.stream.Collectors;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.context.SecurityContextHolder;
 
 @Service
 @Slf4j
@@ -48,14 +44,14 @@ public class DepositService {
     private final UserRepository userRepository;
     private final AuditService auditService;
     private final ApplicationEventPublisher eventPublisher;
+    private final CachedDataService cachedDataService;
 
     public String createDepositRequest(DepositRequestDto depositRequestDto) {
         log.info("Creating deposit request accountNumber={} amount={}", depositRequestDto.getAccountNumber(), depositRequestDto.getAmount());
-        Account account = accountRepository.findByAccountNumber(depositRequestDto.getAccountNumber())
-                .orElseThrow(() -> new DepositRequestNotFoundException("Account not found"));
+        Account account = cachedDataService.getAccountByNumber(depositRequestDto.getAccountNumber());
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         String currentEmail = auth != null ? auth.getName() : null;
-        if (currentEmail == null || account.getUser() == null || !account.getUser().getEmail().equalsIgnoreCase(currentEmail)) {
+        if (account.getUser() == null || !account.getUser().getEmail().equalsIgnoreCase(currentEmail)) {
             auditService.record("DEPOSIT_REQUEST", "ACCOUNT", depositRequestDto.getAccountNumber(), "DENIED", "Ownership validation failed");
             throw new UnauthorizedAccountAccessException("You are not authorized to create a deposit request for this account");
         }
@@ -91,14 +87,11 @@ public class DepositService {
     public String handleDepositAction(Long depositRequestId, String actionRaw) {
         log.info("Handling deposit action id={} action={}", depositRequestId, actionRaw);
         String action = actionRaw == null ? "" : actionRaw.trim().toLowerCase(Locale.ENGLISH);
-        switch (action) {
-            case "approve":
-                return approveInternal(depositRequestId);
-            case "reject":
-                return rejectInternal(depositRequestId);
-            default:
-                throw new InvalidDepositActionException("Invalid action. Use 'approve' or 'reject'.");
-        }
+        return switch (action) {
+            case "approve" -> approveInternal(depositRequestId);
+            case "reject" -> rejectInternal(depositRequestId);
+            default -> throw new InvalidDepositActionException("Invalid action. Use 'approve' or 'reject'.");
+        };
     }
 
     private String approveInternal(Long depositRequestId) {
@@ -177,15 +170,6 @@ public class DepositService {
         return "Rejected";
     }
 
-    // Legacy methods kept for backwards compatibility if still referenced elsewhere
-    @Transactional
-    public String approveDepositRequest(Long depositRequestId) {
-        return approveInternal(depositRequestId);
-    }
-    @Transactional
-    public String rejectDepositRequest(Long depositRequestId) {
-        return rejectInternal(depositRequestId);
-    }
 
     public List<DepositResponseDto> getDepositRequestsByStatus(String status) {
         List<DepositRequest> depositRequests;

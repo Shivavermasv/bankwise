@@ -6,6 +6,7 @@ import com.example.banking_system.enums.Role;
 import com.example.banking_system.enums.VerificationStatus;
 import com.example.banking_system.repository.*;
 import lombok.RequiredArgsConstructor;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
@@ -22,19 +23,21 @@ public class AdminDashboardService {
     private final DepositRepository depositRepository;
     private final TransactionRepository transactionRepository;
 
+    @Cacheable(value = "adminDashboard")
     public Map<String, Object> getAnalytics() {
         Map<String, Object> analytics = new HashMap<>();
         analytics.put("totalUsers", userRepository.count());
-        analytics.put("activeUsers", userRepository.findByRole(Role.USER).size());
-        analytics.put("totalAccounts", accountRepository.count());
+        Object object = userRepository.countByRole(Role.USER);
+        analytics.put("activeUsers", object);
+        analytics.put("totalAccounts", object);
         analytics.put("verifiedAccounts", accountRepository.countByVerificationStatus(VerificationStatus.VERIFIED));
         analytics.put("pendingAccounts", accountRepository.countByVerificationStatus(VerificationStatus.PENDING));
         analytics.put("suspendedAccounts", accountRepository.countByVerificationStatus(VerificationStatus.SUSPENDED));
 
         analytics.put("totalLoans", loanRepo.count());
-        analytics.put("activeLoans", loanRepo.findByStatus(LoanStatus.APPROVED).size());
-        analytics.put("pendingLoans", loanRepo.findByStatus(LoanStatus.PENDING).size());
-        analytics.put("rejectedLoans", loanRepo.findByStatus(LoanStatus.REJECTED).size());
+        analytics.put("activeLoans", loanRepo.countByStatus(LoanStatus.APPROVED));
+        analytics.put("pendingLoans", loanRepo.countByStatus(LoanStatus.PENDING));
+        analytics.put("rejectedLoans", loanRepo.countByStatus(LoanStatus.REJECTED));
 
         analytics.put("totalDepositRequests", depositRepository.count());
         analytics.put("pendingDeposits", depositRepository.countByStatus(DepositStatus.PENDING));

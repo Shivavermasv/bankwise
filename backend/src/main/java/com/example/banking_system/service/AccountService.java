@@ -1,37 +1,24 @@
 package com.example.banking_system.service;
 
-import com.example.banking_system.dto.AdminAccountDto;
-import com.example.banking_system.dto.KycDetailsAdminDto;
-import com.example.banking_system.dto.KycDocumentData;
-import com.example.banking_system.dto.KycDetailsRequestDto;
-import com.example.banking_system.dto.TransferRecipientDto;
+import com.example.banking_system.dto.*;
 import com.example.banking_system.entity.Account;
 import com.example.banking_system.entity.KycDetails;
 import com.example.banking_system.entity.User;
 import com.example.banking_system.enums.Role;
 import com.example.banking_system.enums.VerificationStatus;
-import com.example.banking_system.exception.AccountNotFoundException;
 import com.example.banking_system.exception.AccountStatusException;
 import com.example.banking_system.exception.KycProcessingException;
 import com.example.banking_system.exception.ResourceNotFoundException;
-import com.example.banking_system.service.AuditService;
-import com.example.banking_system.service.NotificationService;
-import com.example.banking_system.service.EmailService;
-import com.example.banking_system.repository.AuditLogRepository;
-import com.example.banking_system.repository.DepositRepository;
-import com.example.banking_system.repository.LoanRepo;
-import com.example.banking_system.repository.NotificationRepository;
-import com.example.banking_system.repository.TransactionRepository;
-import com.example.banking_system.repository.SupportTicketRepository;
-import com.example.banking_system.repository.AccountRepository;
-import com.example.banking_system.repository.KycDetailsRepository;
-import com.example.banking_system.repository.UserRepository;
+import com.example.banking_system.repository.*;
 import com.lowagie.text.Document;
 import com.lowagie.text.Image;
 import com.lowagie.text.Paragraph;
 import com.lowagie.text.pdf.PdfWriter;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.cache.annotation.Cacheable;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -44,8 +31,6 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.regex.Pattern;
-import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Pageable;
 
 @Service
 @Slf4j
@@ -64,12 +49,12 @@ public class AccountService {
     private final AuditLogRepository auditLogRepository;
     private final AuditService auditService;
     private final UserRepository userRepository;
+    private final CachedDataService cachedDataService;
 
     public byte[] generatePdfAndSaveKycDetails(KycDetailsRequestDto kycDetailsRequestDto) {
         try {
             log.info("Processing KYC for accountId={}", kycDetailsRequestDto.getAccountId());
-            Account account = accountRepository.findByAccountNumber(kycDetailsRequestDto.getAccountId())
-                    .orElseThrow(() -> new KycProcessingException("Account not found"));
+            Account account = cachedDataService.getAccountByNumber(kycDetailsRequestDto.getAccountId());
 
             if (kycDetailsRequestDto.getAadharNumber() == null ||
                     kycDetailsRequestDto.getPanNumber() == null ||
@@ -181,8 +166,8 @@ public class AccountService {
     @Transactional
     public boolean updateAccountStatus(String accountNumber, VerificationStatus verificationStatus) {
         log.info("Updating account status accountNumber={} status={}", accountNumber, verificationStatus);
-        Account account = accountRepository.findByAccountNumber(accountNumber)
-                .orElseThrow(() -> new AccountNotFoundException("Account not found with number: " + accountNumber));
+        Account account = cachedDataService.getAccountByNumber(accountNumber);
+
         VerificationStatus current = account.getVerificationStatus();
         if (current == VerificationStatus.DISABLED && verificationStatus != VerificationStatus.DISABLED) {
             throw new AccountStatusException("Disabled accounts cannot be reactivated");
@@ -250,10 +235,10 @@ public class AccountService {
         return true;
     }
 
-    public boolean changeAccountInterestRate(String accountNumber, double newInterestRate) throws Exception {
+    public boolean changeAccountInterestRate(String accountNumber, double newInterestRate) {
         log.info("Updating interest rate accountNumber={} newInterestRate={}", accountNumber, newInterestRate);
-        Account account = accountRepository.findByAccountNumber(accountNumber)
-                .orElseThrow(() -> new RuntimeException("Account not found"));
+        Account account = cachedDataService.getAccountByNumber(accountNumber);
+
         account.setInterestRate(newInterestRate);
         accountRepository.save(account);
         auditService.record("ACCOUNT_INTEREST_UPDATE", "ACCOUNT", accountNumber, "SUCCESS",
@@ -263,6 +248,10 @@ public class AccountService {
         return true;
     }
 
+    @Cacheable(
+            value = "accountListForAdmin",
+            key = "#status + ':' + (#q == null ? '' : #q)"
+    )
     public List<AdminAccountDto> listAccountsForAdmin(String status, String q) {
         VerificationStatus verificationStatus = null;
         if (status != null && !status.isBlank() && !"ALL".equalsIgnoreCase(status)) {
@@ -289,8 +278,7 @@ public class AccountService {
     }
 
     public KycDetailsAdminDto getKycDetailsForAdmin(String accountNumber) throws ResourceNotFoundException {
-        Account account = accountRepository.findByAccountNumber(accountNumber)
-            .orElseThrow(() -> new ResourceNotFoundException("Account not found"));
+        Account account = cachedDataService.getAccountByNumber(accountNumber);
 
         Optional<KycDetailsAdminDto> kycOpt = kycDetailsRepository.findAdminDtoByAccountNumber(accountNumber);
         if (kycOpt.isEmpty()) {

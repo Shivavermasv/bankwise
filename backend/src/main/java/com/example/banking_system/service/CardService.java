@@ -29,27 +29,20 @@ public class CardService {
     private final AccountRepository accountRepository;
     private final SecureRandom secureRandom = new SecureRandom();
 
-    /**
-     * Get all cards for a user
-     */
+
     public List<Card> getUserCards(String userEmail) {
         User user = userRepository.findByEmail(userEmail)
                 .orElseThrow(() -> new RuntimeException("User not found"));
         return cardRepository.findByUserOrderByCreatedAtDesc(user);
     }
 
-    /**
-     * Get active cards
-     */
     public List<Card> getActiveCards(String userEmail) {
         User user = userRepository.findByEmail(userEmail)
                 .orElseThrow(() -> new RuntimeException("User not found"));
         return cardRepository.findActiveCardsByUser(user);
     }
 
-    /**
-     * Issue a new debit card
-     */
+
     @Transactional
     public Card issueDebitCard(String userEmail, String accountNumber) {
         User user = userRepository.findByEmail(userEmail)
@@ -83,9 +76,7 @@ public class CardService {
         return cardRepository.save(card);
     }
 
-    /**
-     * Issue a credit card (requires credit score check)
-     */
+
     @Transactional
     public Card issueCreditCard(String userEmail, String accountNumber, BigDecimal requestedLimit) {
         User user = userRepository.findByEmail(userEmail)
@@ -132,9 +123,7 @@ public class CardService {
         return cardRepository.save(card);
     }
 
-    /**
-     * Block/Unblock card
-     */
+
     @Transactional
     public Card updateCardStatus(String userEmail, Long cardId, CardStatus status) {
         User user = userRepository.findByEmail(userEmail)
@@ -152,9 +141,7 @@ public class CardService {
         return cardRepository.save(card);
     }
 
-    /**
-     * Update card settings
-     */
+
     @Transactional
     public Card updateCardSettings(String userEmail, Long cardId, Map<String, Object> settings) {
         User user = userRepository.findByEmail(userEmail)
@@ -183,9 +170,7 @@ public class CardService {
         return cardRepository.save(card);
     }
 
-    /**
-     * Get card details (with CVV for authenticated user)
-     */
+
     public Map<String, Object> getCardDetails(String userEmail, Long cardId, boolean showSensitive) {
         User user = userRepository.findByEmail(userEmail)
                 .orElseThrow(() -> new RuntimeException("User not found"));
@@ -220,7 +205,7 @@ public class CardService {
         return details;
     }
 
-    // Helper methods
+  
     private String generateCardNumber() {
         StringBuilder sb = new StringBuilder();
         // Start with 4 (Visa-like) for debit, 5 (Mastercard-like) for credit

@@ -23,41 +23,27 @@ public class BeneficiaryService {
     private final BeneficiaryRepository beneficiaryRepository;
     private final UserRepository userRepository;
     private final AccountRepository accountRepository;
+    private final CachedDataService cachedDataService;
 
-    /**
-     * Get all beneficiaries for a user
-     */
+
     public List<Beneficiary> getBeneficiaries(String userEmail) {
-        User user = userRepository.findByEmail(userEmail)
-                .orElseThrow(() -> new RuntimeException("User not found"));
+        User user = cachedDataService.getUserByEmail(userEmail);
         return beneficiaryRepository.findByUserAndIsActiveTrueOrderByIsFavoriteDescLastUsedAtDesc(user);
     }
 
-    /**
-     * Get favorite beneficiaries
-     */
     public List<Beneficiary> getFavoriteBeneficiaries(String userEmail) {
-        User user = userRepository.findByEmail(userEmail)
-                .orElseThrow(() -> new RuntimeException("User not found"));
+        User user = cachedDataService.getUserByEmail(userEmail);
         return beneficiaryRepository.findByUserAndIsFavoriteTrueAndIsActiveTrue(user);
     }
 
-    /**
-     * Search beneficiaries
-     */
     public List<Beneficiary> searchBeneficiaries(String userEmail, String searchTerm) {
-        User user = userRepository.findByEmail(userEmail)
-                .orElseThrow(() -> new RuntimeException("User not found"));
+        User user = cachedDataService.getUserByEmail(userEmail);
         return beneficiaryRepository.searchBeneficiaries(user, searchTerm);
     }
 
-    /**
-     * Add a new beneficiary
-     */
     @Transactional
     public Beneficiary addBeneficiary(String userEmail, String beneficiaryAccountNumber, String nickname) {
-        User user = userRepository.findByEmail(userEmail)
-                .orElseThrow(() -> new RuntimeException("User not found"));
+        User user = cachedDataService.getUserByEmail(userEmail);
 
         // Check if beneficiary already exists
         if (beneficiaryRepository.existsByUserAndBeneficiaryAccountNumber(user, beneficiaryAccountNumber)) {
@@ -65,8 +51,7 @@ public class BeneficiaryService {
         }
 
         // Validate the account exists
-        Account beneficiaryAccount = accountRepository.findByAccountNumber(beneficiaryAccountNumber)
-                .orElseThrow(() -> new RuntimeException("Beneficiary account not found"));
+        Account beneficiaryAccount = cachedDataService.getAccountByNumber(beneficiaryAccountNumber);
 
         // Get the account holder's name
         String beneficiaryName = beneficiaryAccount.getUser().getName();
@@ -85,13 +70,9 @@ public class BeneficiaryService {
         return beneficiaryRepository.save(beneficiary);
     }
 
-    /**
-     * Update beneficiary
-     */
     @Transactional
     public Beneficiary updateBeneficiary(String userEmail, Long beneficiaryId, String nickname, Boolean isFavorite) {
-        User user = userRepository.findByEmail(userEmail)
-                .orElseThrow(() -> new RuntimeException("User not found"));
+        User user = cachedDataService.getUserByEmail(userEmail);
 
         Beneficiary beneficiary = beneficiaryRepository.findById(beneficiaryId)
                 .orElseThrow(() -> new RuntimeException("Beneficiary not found"));
@@ -110,13 +91,9 @@ public class BeneficiaryService {
         return beneficiaryRepository.save(beneficiary);
     }
 
-    /**
-     * Delete (deactivate) beneficiary
-     */
     @Transactional
     public void deleteBeneficiary(String userEmail, Long beneficiaryId) {
-        User user = userRepository.findByEmail(userEmail)
-                .orElseThrow(() -> new RuntimeException("User not found"));
+        User user = cachedDataService.getUserByEmail(userEmail);
 
         Beneficiary beneficiary = beneficiaryRepository.findById(beneficiaryId)
                 .orElseThrow(() -> new RuntimeException("Beneficiary not found"));
@@ -130,13 +107,10 @@ public class BeneficiaryService {
         log.info("Deactivated beneficiary {} for user {}", beneficiaryId, userEmail);
     }
 
-    /**
-     * Record a transfer to a beneficiary (updates last used and count)
-     */
+
     @Transactional
     public void recordTransfer(String userEmail, String beneficiaryAccountNumber) {
-        User user = userRepository.findByEmail(userEmail)
-                .orElseThrow(() -> new RuntimeException("User not found"));
+        User user = cachedDataService.getUserByEmail(userEmail);
 
         Optional<Beneficiary> beneficiaryOpt = beneficiaryRepository
                 .findByUserAndBeneficiaryAccountNumber(user, beneficiaryAccountNumber);
@@ -147,12 +121,8 @@ public class BeneficiaryService {
         });
     }
 
-    /**
-     * Get beneficiary stats
-     */
     public Map<String, Object> getBeneficiaryStats(String userEmail) {
-        User user = userRepository.findByEmail(userEmail)
-                .orElseThrow(() -> new RuntimeException("User not found"));
+        User user = cachedDataService.getUserByEmail(userEmail);
 
         long total = beneficiaryRepository.countByUser(user);
         List<Beneficiary> favorites = beneficiaryRepository.findByUserAndIsFavoriteTrueAndIsActiveTrue(user);

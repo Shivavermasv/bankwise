@@ -46,40 +46,40 @@ public class LoanService {
     private final TransactionRepository transactionRepository;
     private final AuditService auditService;
     private final ApplicationEventPublisher eventPublisher;
+    private final CachedDataService cachedDataService;
 
-        @Value("${bankwise.loan.min-amount:1000}")
-        private BigDecimal minLoanAmount;
+    @Value("${bankwise.loan.min-amount:1000}")
+    private BigDecimal minLoanAmount;
 
-        @Value("${bankwise.loan.max-amount:500000}")
-        private BigDecimal maxLoanAmount;
+    @Value("${bankwise.loan.max-amount:500000}")
+    private BigDecimal maxLoanAmount;
 
     public LoanResponseDto applyForLoan(LoanRequestDto dto) throws ResourceNotFoundException {
         log.info("Applying for loan accountNumber={} amount={} tenure={}", dto.getAccountNumber(), dto.getAmount(), dto.getTenureInMonths());
-        Account account = accountRepo.findByAccountNumber(dto.getAccountNumber())
-                .orElseThrow(() -> new ResourceNotFoundException("Bank account not found"));
+        Account account = cachedDataService.getAccountByNumber(dto.getAccountNumber());
 
-                Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-                String currentEmail = auth != null ? auth.getName() : null;
-                if (currentEmail == null || account.getUser() == null || !account.getUser().getEmail().equalsIgnoreCase(currentEmail)) {
-                        auditService.record("LOAN_APPLY", "ACCOUNT", dto.getAccountNumber(), "DENIED", "Ownership validation failed");
-                        throw new UnauthorizedAccountAccessException("You are not authorized to apply for a loan on this account");
-                }
-                if (account.getVerificationStatus() != VerificationStatus.VERIFIED) {
-                        auditService.record("LOAN_APPLY", "ACCOUNT", dto.getAccountNumber(), "DENIED", "Account not verified");
-                        throw new AccountStatusException("Account must be verified to apply for a loan");
-                }
-                if (dto.getAmount() == null || dto.getAmount().compareTo(minLoanAmount) < 0) {
-                        throw new BusinessRuleViolationException("Loan amount below minimum limit");
-                }
-                if (dto.getAmount().compareTo(maxLoanAmount) > 0) {
-                        throw new BusinessRuleViolationException("Loan amount exceeds maximum limit");
-                }
-                boolean hasActive = loanRepo.existsByBankAccount_AccountNumberAndStatusIn(
-                                dto.getAccountNumber(), List.of(LoanStatus.PENDING, LoanStatus.APPROVED)
-                );
-                if (hasActive) {
-                        throw new BusinessRuleViolationException("Active or pending loan already exists for this account");
-                }
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        String currentEmail = auth != null ? auth.getName() : null;
+        if (account.getUser() == null || !account.getUser().getEmail().equalsIgnoreCase(currentEmail)) {
+            auditService.record("LOAN_APPLY", "ACCOUNT", dto.getAccountNumber(), "DENIED", "Ownership validation failed");
+            throw new UnauthorizedAccountAccessException("You are not authorized to apply for a loan on this account");
+        }
+        if (account.getVerificationStatus() != VerificationStatus.VERIFIED) {
+            auditService.record("LOAN_APPLY", "ACCOUNT", dto.getAccountNumber(), "DENIED", "Account not verified");
+            throw new AccountStatusException("Account must be verified to apply for a loan");
+        }
+        if (dto.getAmount() == null || dto.getAmount().compareTo(minLoanAmount) < 0) {
+            throw new BusinessRuleViolationException("Loan amount below minimum limit");
+        }
+        if (dto.getAmount().compareTo(maxLoanAmount) > 0) {
+            throw new BusinessRuleViolationException("Loan amount exceeds maximum limit");
+        }
+        boolean hasActive = loanRepo.existsByBankAccount_AccountNumberAndStatusIn(
+                dto.getAccountNumber(), List.of(LoanStatus.PENDING, LoanStatus.APPROVED)
+        );
+        if (hasActive) {
+            throw new BusinessRuleViolationException("Active or pending loan already exists for this account");
+        }
 
         LoanRequest loan = LoanRequest.builder()
                 .bankAccount(account)
@@ -94,16 +94,16 @@ public class LoanService {
         loanRepo.save(loan);
         auditService.record("LOAN_APPLY", "LOAN", String.valueOf(loan.getId()), "PENDING",
                 "amount=" + dto.getAmount() + " tenure=" + dto.getTenureInMonths());
-        
+
         // Publish event - notifications will be sent asynchronously AFTER transaction commits
         eventPublisher.publishEvent(new LoanApplicationEvent(
-            this,
-            loan.getId(),
-            dto.getAccountNumber(),
-            dto.getAmount(),
-            account.getUser().getEmail()
+                this,
+                loan.getId(),
+                dto.getAccountNumber(),
+                dto.getAmount(),
+                account.getUser().getEmail()
         ));
-        
+
         return mapToDto(loan);
     }
 
@@ -113,14 +113,14 @@ public class LoanService {
         int tenureInMonths = loan.getTenureInMonths() != null ? loan.getTenureInMonths() : 0;
         int emisPaid = loan.getEmisPaid() != null ? loan.getEmisPaid() : 0;
         int totalEmis = tenureInMonths;
-        
+
         BigDecimal emiAmount = calculateMonthlyEmi(loan.getAmount(), interestRate, tenureInMonths);
         BigDecimal totalAmountPaid = emiAmount.multiply(BigDecimal.valueOf(emisPaid));
         BigDecimal totalPayable = emiAmount.multiply(BigDecimal.valueOf(totalEmis));
         BigDecimal totalOutstanding = emiAmount.multiply(BigDecimal.valueOf(Math.max(0, totalEmis - emisPaid)));
-        
+
         double paidPercentage = totalEmis > 0 ? (emisPaid * 100.0) / totalEmis : 0;
-        
+
         String paymentStatus;
         if (loan.getStatus() == LoanStatus.CLOSED || emisPaid >= totalEmis) {
             paymentStatus = "FULLY_PAID";
@@ -129,7 +129,7 @@ public class LoanService {
         } else {
             paymentStatus = "NOT_STARTED";
         }
-        
+
         return LoanResponseDto.builder()
                 .id(loan.getId())
                 .accountNumber(loan.getBankAccount().getAccountNumber())
@@ -157,49 +157,49 @@ public class LoanService {
         LoanRequest loan = loanRepo.findById(loanId)
                 .orElseThrow(() -> new ResourceNotFoundException("Loan request not found"));
 
-                LoanStatus currentStatus = loan.getStatus();
-                if (currentStatus == status) {
-                        return "Loan already " + status.name().toLowerCase();
-                }
+        LoanStatus currentStatus = loan.getStatus();
+        if (currentStatus == status) {
+            return "Loan already " + status.name().toLowerCase();
+        }
 
-                loan.setStatus(status);
-                loan.setAdminRemark(adminRemark);
-                if (status == LoanStatus.APPROVED) {
-                        loan.setApprovalDate(LocalDate.now());
-                        loan.setMaturityDate(LocalDate.now().plusMonths(loan.getTenureInMonths()));
+        loan.setStatus(status);
+        loan.setAdminRemark(adminRemark);
+        if (status == LoanStatus.APPROVED) {
+            loan.setApprovalDate(LocalDate.now());
+            loan.setMaturityDate(LocalDate.now().plusMonths(loan.getTenureInMonths()));
 
-                        Account account = loan.getBankAccount();
-                        if (account != null) {
-                                account.setBalance(account.getBalance().add(loan.getAmount()));
-                                accountRepo.save(account);
+            Account account = loan.getBankAccount();
+            if (account != null) {
+                account.setBalance(account.getBalance().add(loan.getAmount()));
+                accountRepo.save(account);
 
-                                Transaction disbursement = Transaction.builder()
-                                                .destinationAccount(account)
-                                                .amount(loan.getAmount())
-                                                .type(TransactionType.LOAN_DISBURSEMENT)
-                                                .timestamp(LocalDate.now().atStartOfDay())
-                                                .status(TransactionStatus.SUCCESS)
-                                                .build();
-                                transactionRepository.save(disbursement);
-                                auditService.record("LOAN_DISBURSE", "ACCOUNT", account.getAccountNumber(), "SUCCESS",
-                                                "loanId=" + loanId + " amount=" + loan.getAmount());
-                        }
-                }
+                Transaction disbursement = Transaction.builder()
+                        .destinationAccount(account)
+                        .amount(loan.getAmount())
+                        .type(TransactionType.LOAN_DISBURSEMENT)
+                        .timestamp(LocalDate.now().atStartOfDay())
+                        .status(TransactionStatus.SUCCESS)
+                        .build();
+                transactionRepository.save(disbursement);
+                auditService.record("LOAN_DISBURSE", "ACCOUNT", account.getAccountNumber(), "SUCCESS",
+                        "loanId=" + loanId + " amount=" + loan.getAmount());
+            }
+        }
 
         String userEmail = loan.getBankAccount().getUser().getEmail();
         loanRepo.save(loan);
         auditService.record("LOAN_STATUS_UPDATE", "LOAN", String.valueOf(loanId), status.name(), adminRemark);
-        
+
         // Publish event - notifications will be sent asynchronously AFTER transaction commits
         eventPublisher.publishEvent(new LoanStatusChangedEvent(
-            this,
-            loanId,
-            loan.getBankAccount().getAccountNumber(),
-            status.name(),
-            adminRemark,
-            userEmail
+                this,
+                loanId,
+                loan.getBankAccount().getAccountNumber(),
+                status.name(),
+                adminRemark,
+                userEmail
         ));
-        
+
         return "Loan status updated successfully";
     }
 
@@ -207,23 +207,21 @@ public class LoanService {
         return loanRepo.findByStatus(status).stream().map(this::mapToDto).toList();
     }
 
-        public List<LoanResponseDto> getLoansByAccount(String accountNumber) {
-                Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-                String currentEmail = auth != null ? auth.getName() : null;
-                Account account = accountRepo.findByAccountNumber(accountNumber)
-                        .orElseThrow(() -> new AccountNotFoundException("Bank account not found"));
-                if (currentEmail == null || account.getUser() == null || !account.getUser().getEmail().equalsIgnoreCase(currentEmail)) {
-                        throw new UnauthorizedAccountAccessException("You are not authorized to view loans for this account");
-                }
-                return loanRepo.findByBankAccount_AccountNumber(accountNumber).stream().map(this::mapToDto).toList();
+    public List<LoanResponseDto> getLoansByAccount(String accountNumber) {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        String currentEmail = auth != null ? auth.getName() : null;
+        Account account = cachedDataService.getAccountByNumber(accountNumber);
+        if (account.getUser() == null || !account.getUser().getEmail().equalsIgnoreCase(currentEmail)) {
+            throw new UnauthorizedAccountAccessException("You are not authorized to view loans for this account");
         }
+        return loanRepo.findByBankAccount_AccountNumber(accountNumber).stream().map(this::mapToDto).toList();
+    }
 
     public LoanResponseDto getActiveLoan(String accountNumber) {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         String currentEmail = auth != null ? auth.getName() : null;
-        Account account = accountRepo.findByAccountNumber(accountNumber)
-                .orElseThrow(() -> new AccountNotFoundException("Bank account not found"));
-        if (currentEmail == null || account.getUser() == null || !account.getUser().getEmail().equalsIgnoreCase(currentEmail)) {
+        Account account = cachedDataService.getAccountByNumber(accountNumber);
+        if (account.getUser() == null || !account.getUser().getEmail().equalsIgnoreCase(currentEmail)) {
             throw new UnauthorizedAccountAccessException("You are not authorized to view loans for this account");
         }
         return loanRepo.findByBankAccount_AccountNumberAndStatus(accountNumber, LoanStatus.APPROVED)
@@ -241,7 +239,7 @@ public class LoanService {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         String currentEmail = auth != null ? auth.getName() : null;
         Account account = loan.getBankAccount();
-        if (currentEmail == null || account.getUser() == null || !account.getUser().getEmail().equalsIgnoreCase(currentEmail)) {
+        if (account.getUser() == null || !account.getUser().getEmail().equalsIgnoreCase(currentEmail)) {
             throw new UnauthorizedAccountAccessException("You are not authorized to repay this loan");
         }
 
@@ -256,7 +254,7 @@ public class LoanService {
         double interestRate = loan.getInterestRate() != null ? loan.getInterestRate() : 0.0;
         int tenureInMonths = loan.getTenureInMonths() != null ? loan.getTenureInMonths() : 0;
         BigDecimal emi = calculateMonthlyEmi(loan.getAmount(), interestRate, tenureInMonths);
-        
+
         if (account.getBalance().compareTo(amount) < 0) {
             throw new BusinessRuleViolationException("Insufficient balance for repayment");
         }
@@ -284,13 +282,13 @@ public class LoanService {
         // Check if loan is fully repaid
         if (loan.getEmisPaid() >= loan.getTenureInMonths()) {
             loan.setStatus(LoanStatus.CLOSED);
-            
+
             // Increase credit score for completing loan repayment
             User user = account.getUser();
             int newCreditScore = Math.min(900, user.getCreditScore() + 25); // Max 900
             user.setCreditScore(newCreditScore);
             userRepository.save(user);
-            
+
             auditService.record("LOAN_CLOSED", "LOAN", String.valueOf(loan.getId()), "CLOSED",
                     "Loan fully repaid via manual payment. Credit score: " + newCreditScore);
             notificationService.sendNotification(currentEmail,
@@ -303,7 +301,7 @@ public class LoanService {
             int newCreditScore = Math.min(900, user.getCreditScore() + 2);
             user.setCreditScore(newCreditScore);
             userRepository.save(user);
-            
+
             notificationService.sendNotification(currentEmail,
                     "💰 Payment of ₹" + amount + " received for loan #" + loanId + ". EMIs paid: " + loan.getEmisPaid() + "/" + loan.getTenureInMonths());
         }
@@ -319,7 +317,7 @@ public class LoanService {
 
     public Map<String, Object> getEmiDetails(Long loanId) throws ResourceNotFoundException {
         LoanRequest loan = loanRepo.findByIdWithAccountAndUser(loanId)
-            .orElseThrow(() -> new ResourceNotFoundException("Loan not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("Loan not found"));
 
         // Verify ownership
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
@@ -332,25 +330,25 @@ public class LoanService {
         double loanInterestRate = loan.getInterestRate() != null ? loan.getInterestRate() : 0.0;
         int loanTenure = loan.getTenureInMonths() != null ? loan.getTenureInMonths() : 0;
         int loanEmisPaid = loan.getEmisPaid() != null ? loan.getEmisPaid() : 0;
-        
+
         BigDecimal emi = calculateMonthlyEmi(loan.getAmount(), loanInterestRate, loanTenure);
         int remainingEmis = Math.max(0, loanTenure - loanEmisPaid);
         BigDecimal totalOutstanding = emi.multiply(BigDecimal.valueOf(remainingEmis));
 
         // Calculate next EMI date (1st of next month from approval)
-        LocalDate nextEmiDate = loan.getApprovalDate() != null 
-            ? loan.getApprovalDate().plusMonths(loanEmisPaid + 1).withDayOfMonth(1)
-            : LocalDate.now().plusMonths(1).withDayOfMonth(1);
+        LocalDate nextEmiDate = loan.getApprovalDate() != null
+                ? loan.getApprovalDate().plusMonths(loanEmisPaid + 1).withDayOfMonth(1)
+                : LocalDate.now().plusMonths(1).withDayOfMonth(1);
 
         return Map.of(
-            "loanId", loan.getId(),
-            "emiAmount", emi,
-            "emisPaid", loanEmisPaid,
-            "totalEmis", loanTenure,
-            "remainingEmis", remainingEmis,
-            "totalOutstanding", totalOutstanding,
-            "nextEmiDate", nextEmiDate,
-            "status", loan.getStatus()
+                "loanId", loan.getId(),
+                "emiAmount", emi,
+                "emisPaid", loanEmisPaid,
+                "totalEmis", loanTenure,
+                "remainingEmis", remainingEmis,
+                "totalOutstanding", totalOutstanding,
+                "nextEmiDate", nextEmiDate,
+                "status", loan.getStatus()
         );
     }
 
@@ -367,16 +365,16 @@ public class LoanService {
                 double loanRate = loan.getInterestRate() != null ? loan.getInterestRate() : 0.0;
                 int loanMonths = loan.getTenureInMonths() != null ? loan.getTenureInMonths() : 0;
                 BigDecimal emi = calculateMonthlyEmi(loan.getAmount(), loanRate, loanMonths);
-                
+
                 notificationService.sendNotification(userEmail,
-                        "⏰ EMI Reminder: Your EMI of ₹" + emi + " for loan #" + loan.getId() + 
-                        " is due in 3 days. Please ensure sufficient balance.");
-                
+                        "⏰ EMI Reminder: Your EMI of ₹" + emi + " for loan #" + loan.getId() +
+                                " is due in 3 days. Please ensure sufficient balance.");
+
                 emailService.sendEmail(userEmail, "EMI Due Reminder",
-                        "Dear Customer,\n\nThis is a reminder that your EMI of ₹" + emi + 
-                        " for loan #" + loan.getId() + " is due on the 1st of this month.\n\n" +
-                        "Please ensure you have sufficient balance in your account.\n\n" +
-                        "Regards,\nBankwise Team");
+                        "Dear Customer,\n\nThis is a reminder that your EMI of ₹" + emi +
+                                " for loan #" + loan.getId() + " is due on the 1st of this month.\n\n" +
+                                "Please ensure you have sufficient balance in your account.\n\n" +
+                                "Regards,\nBankwise Team");
             }
         }
     }
@@ -395,7 +393,7 @@ public class LoanService {
             double loanRate = loan.getInterestRate() != null ? loan.getInterestRate() : 0.0;
             int loanMonths = loan.getTenureInMonths() != null ? loan.getTenureInMonths() : 0;
             int paidEmis = loan.getEmisPaid() != null ? loan.getEmisPaid() : 0;
-            
+
             BigDecimal emi = calculateMonthlyEmi(loan.getAmount(), loanRate, loanMonths);
 
             BigDecimal balance = account.getBalance();
@@ -418,8 +416,8 @@ public class LoanService {
                 if ((paidEmis + 1) >= loanMonths) {
                     loan.setStatus(LoanStatus.CLOSED);
 
-                                        auditService.recordSystem("LOAN_CLOSED", "LOAN", String.valueOf(loan.getId()), "CLOSED",
-                                                        "All EMIs paid");
+                    auditService.recordSystem("LOAN_CLOSED", "LOAN", String.valueOf(loan.getId()), "CLOSED",
+                            "All EMIs paid");
 
                     emailService.sendEmail(userEmail,
                             "🎉 Loan Fully Repaid",
