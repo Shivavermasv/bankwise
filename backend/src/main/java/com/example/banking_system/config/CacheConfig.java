@@ -40,6 +40,7 @@ public class CacheConfig {
         configs.put("adminDashboard", defaultConfig.entryTtl(Duration.ofMinutes(2)));
         configs.put("accountListForAdmin", defaultConfig.entryTtl(Duration.ofMinutes(1)));
         configs.put("depositRequestList", defaultConfig.entryTtl(Duration.ofMinutes(2)));
+        
 
         return RedisCacheManager.builder(factory)
                 .cacheDefaults(defaultConfig)
