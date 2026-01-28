@@ -3,6 +3,8 @@ package com.example.banking_system.entity;
 import com.example.banking_system.Genrator.CustomIdGenerator;
 import com.example.banking_system.enums.AccountType;
 import com.example.banking_system.enums.VerificationStatus;
+import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
@@ -23,6 +25,7 @@ import java.time.LocalDateTime;
         @Index(name = "idx_account_status_user", columnList = "verificationStatus, user_id")
     }
 )
+@JsonIgnoreProperties(ignoreUnknown = true)
 public class Account {
     @Id
     @GeneratedValue(strategy = GenerationType.AUTO)
@@ -73,6 +76,7 @@ public class Account {
 
     @ManyToOne(cascade = CascadeType.PERSIST)
     @JoinColumn(name = "user_id")
+    @JsonIgnore
     private User user;
 
     @Column(updatable = false)

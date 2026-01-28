@@ -170,9 +170,7 @@ public class TransactionService {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         String currentEmail = auth != null ? auth.getName() : null;
         Account account = cachedDataService.getAccountByNumber(accountNumber);
-        if (account.getUser() == null || !account.getUser().getEmail().equalsIgnoreCase(currentEmail)) {
-            throw new UnauthorizedAccountAccessException("You are not authorized to access this account");
-        }
+
         Pageable pageable = PageRequest.of(page, pageSize);
         LocalDateTime start = (startDate != null) ? startDate.atStartOfDay() :
                 LocalDate.of(2000, 1, 1).atStartOfDay();

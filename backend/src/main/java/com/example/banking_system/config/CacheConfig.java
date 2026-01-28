@@ -1,6 +1,8 @@
 package com.example.banking_system.config;
 
+import com.fasterxml.jackson.annotation.JsonTypeInfo;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import org.springframework.cache.annotation.EnableCaching;
 import org.springframework.context.annotation.Bean;
@@ -10,6 +12,7 @@ import org.springframework.data.redis.cache.RedisCacheManager;
 import org.springframework.data.redis.connection.RedisConnectionFactory;
 import org.springframework.data.redis.serializer.GenericJackson2JsonRedisSerializer;
 import org.springframework.data.redis.serializer.RedisSerializationContext;
+import org.springframework.data.redis.serializer.StringRedisSerializer;
 
 import java.time.Duration;
 import java.util.HashMap;
@@ -22,9 +25,16 @@ public class CacheConfig {
     @Bean
     public RedisCacheManager cacheManager(RedisConnectionFactory factory) {
 
-        // Proper ObjectMapper for Java time (LocalDateTime etc.)
         ObjectMapper objectMapper = new ObjectMapper();
         objectMapper.registerModule(new JavaTimeModule());
+        objectMapper.disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
+
+        // 🔑 CRITICAL: enable type metadata
+        objectMapper.activateDefaultTyping(
+                objectMapper.getPolymorphicTypeValidator(),
+                ObjectMapper.DefaultTyping.NON_FINAL,
+                JsonTypeInfo.As.PROPERTY
+        );
 
         GenericJackson2JsonRedisSerializer serializer =
                 new GenericJackson2JsonRedisSerializer(objectMapper);
@@ -32,16 +42,16 @@ public class CacheConfig {
         RedisCacheConfiguration defaultConfig =
                 RedisCacheConfiguration.defaultCacheConfig()
                         .disableCachingNullValues()
+                        .serializeKeysWith(
+                                RedisSerializationContext.SerializationPair.fromSerializer(
+                                        StringRedisSerializer.UTF_8
+                                )
+                        )
                         .serializeValuesWith(
                                 RedisSerializationContext.SerializationPair.fromSerializer(serializer)
                         )
-                        .serializeKeysWith(
-                                RedisSerializationContext.SerializationPair.fromSerializer(
-                                        org.springframework.data.redis.serializer.StringRedisSerializer.UTF_8
-                                )
-                        )
                         .prefixCacheNameWith("bankwise::")
-                        .entryTtl(Duration.ofMinutes(10)); // sane default TTL
+                        .entryTtl(Duration.ofMinutes(10));
 
         Map<String, RedisCacheConfiguration> configs = new HashMap<>();
 
@@ -56,7 +66,7 @@ public class CacheConfig {
         return RedisCacheManager.builder(factory)
                 .cacheDefaults(defaultConfig)
                 .withInitialCacheConfigurations(configs)
-                .transactionAware() // important for @Transactional methods
+                .transactionAware()
                 .build();
     }
 }

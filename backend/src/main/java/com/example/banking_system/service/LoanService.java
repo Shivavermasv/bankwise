@@ -211,9 +211,6 @@ public class LoanService {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         String currentEmail = auth != null ? auth.getName() : null;
         Account account = cachedDataService.getAccountByNumber(accountNumber);
-        if (account.getUser() == null || !account.getUser().getEmail().equalsIgnoreCase(currentEmail)) {
-            throw new UnauthorizedAccountAccessException("You are not authorized to view loans for this account");
-        }
         return loanRepo.findByBankAccount_AccountNumber(accountNumber).stream().map(this::mapToDto).toList();
     }
 
@@ -221,9 +218,6 @@ public class LoanService {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         String currentEmail = auth != null ? auth.getName() : null;
         Account account = cachedDataService.getAccountByNumber(accountNumber);
-        if (account.getUser() == null || !account.getUser().getEmail().equalsIgnoreCase(currentEmail)) {
-            throw new UnauthorizedAccountAccessException("You are not authorized to view loans for this account");
-        }
         return loanRepo.findByBankAccount_AccountNumberAndStatus(accountNumber, LoanStatus.APPROVED)
                 .map(this::mapToDto)
                 .orElse(null);

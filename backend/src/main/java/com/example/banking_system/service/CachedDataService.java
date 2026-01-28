@@ -21,7 +21,6 @@ public class CachedDataService {
     private final UserRepository userRepository;
     private final AccountRepository accountRepository;
 
-    @Cacheable(value = "userByEmail", key = "#email", unless = "#result == null")
     public User getUserByEmail(String email) {
         log.debug("Cache MISS: Loading user by email: {}", email);
         return userRepository.findByEmail(email).orElseThrow(()-> new RuntimeException("User Not Found"));
@@ -46,7 +45,6 @@ public class CachedDataService {
         log.debug("Evicting account cache for: {}", accountNumber);
     }
 
-    @CacheEvict(value = "userByEmail", key = "#email")
     public void evictUserCache(String email) {
         log.debug("Evicting user cache for: {}", email);
     }
