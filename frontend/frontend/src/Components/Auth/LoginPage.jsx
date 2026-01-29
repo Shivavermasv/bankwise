@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { FaEye, FaEyeSlash, FaUniversity, FaShieldAlt, FaCreditCard, FaChartLine, FaLock, FaWallet } from "react-icons/fa";
 import { motion, AnimatePresence } from "framer-motion";
-import { loginWithCredentials as apiLogin, verifyOtpAndFetchToken as apiVerifyOtp } from "../../utils/authApi";
+import { loginWithCredentials as apiLogin, verifyOtpAndFetchToken as apiVerifyOtp, developerLogin } from "../../utils/authApi";
 import { toDisplayString } from "../../utils";
 import { storeUser, getStoredUser } from "../../utils/auth";
 
@@ -71,6 +71,8 @@ const LoginPage = () => {
   const [step, setStep] = useState("login"); // login | otp
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [devPassword, setDevPassword] = useState(""); // Developer password for OTP bypass
+  const [showDevLogin, setShowDevLogin] = useState(false); // Toggle developer login mode
   const [otp, setOtp] = useState(["", "", "", "", "", ""]);
   const [otpError, setOtpError] = useState("");
   const [otpTimer, setOtpTimer] = useState(0);
@@ -91,6 +93,8 @@ const LoginPage = () => {
       // User is already logged in with valid token, redirect to appropriate home
       if (user.role === "ADMIN" || user.role === "MANAGER") {
         navigate("/admin-home", { replace: true });
+      } else if (user.role === "DEVELOPER") {
+        navigate("/developer", { replace: true });
       } else {
         navigate("/home", { replace: true });
       }
@@ -119,6 +123,24 @@ const LoginPage = () => {
     setError("");
     setEmailError("");
     setPwdError("");
+    
+    // Developer-only login mode - just needs dev password
+    if (showDevLogin && devPassword) {
+      try {
+        const result = await developerLogin(devPassword);
+        if (result.step === 'authenticated') {
+          const data = result.user;
+          storeUser(data);
+          sessionStorage.setItem('justLoggedIn', 'true');
+          navigate("/developer", { replace: true });
+        }
+      } catch (err) {
+        setError(err.message || "Developer login failed");
+      }
+      return;
+    }
+    
+    // Normal user login
     let valid = true;
     if (!isEmailValid) {
       setEmailError("Please enter a valid email.");
@@ -145,6 +167,8 @@ const LoginPage = () => {
         sessionStorage.setItem('justLoggedIn', 'true');
         if (data.role === 'ADMIN' || data.role === 'MANAGER') {
           navigate('/admin-home');
+        } else if (data.role === 'DEVELOPER') {
+          navigate('/developer');
         } else {
           navigate('/home');
         }
@@ -239,52 +263,99 @@ const LoginPage = () => {
                 <div className="w-16 h-16 mx-auto mb-4 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-2xl flex items-center justify-center shadow-lg">
                   <FaLock className="text-white text-2xl" />
                 </div>
-                <h2 className="text-2xl font-bold text-slate-800 dark:text-white">Welcome Back</h2>
-                <p className="text-slate-500 dark:text-slate-400 text-sm mt-1">Sign in to your account</p>
+                <h2 className="text-2xl font-bold text-slate-800 dark:text-white">
+                  {showDevLogin ? 'Developer Access' : 'Welcome Back'}
+                </h2>
+                <p className="text-slate-500 dark:text-slate-400 text-sm mt-1">
+                  {showDevLogin ? 'Enter developer password to access' : 'Sign in to your account'}
+                </p>
               </div>
-              
-              <div>
-                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Email</label>
-                <input
-                  type="email"
-                  value={email}
-                  autoFocus
-                  onChange={e => {
-                    setEmail(e.target.value);
-                    setEmailError("");
-                    setError("");
-                  }}
-                  className={`w-full px-4 py-2.5 rounded-lg border ${emailError ? 'border-red-400' : 'border-slate-300 dark:border-slate-600'} bg-white dark:bg-slate-700 text-slate-800 dark:text-white placeholder-slate-400 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all`}
-                  placeholder="Enter your email"
-                  aria-label="Email address"
-                />
-                {emailError && <p className="text-red-400 text-xs mt-1">{emailError}</p>}
-              </div>
-              
-              <div className="relative">
-                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Password</label>
-                <input
-                  type={showPwd ? "text" : "password"}
-                  value={password}
-                  onChange={e => {
-                    setPassword(e.target.value);
-                    setPwdError("");
-                    setError("");
-                  }}
-                  className={`w-full px-4 py-2.5 pr-10 rounded-lg border ${pwdError ? 'border-red-400' : 'border-slate-300 dark:border-slate-600'} bg-white dark:bg-slate-700 text-slate-800 dark:text-white placeholder-slate-400 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all`}
-                  placeholder="Enter your password"
-                  aria-label="Password"
-                />
+
+              {/* Developer Login Toggle */}
+              <div className="flex items-center justify-center">
                 <button
                   type="button"
-                  onClick={() => setShowPwd(!showPwd)}
-                  className="absolute right-3 top-9 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"
-                  aria-label={showPwd ? "Hide password" : "Show password"}
+                  onClick={() => setShowDevLogin(!showDevLogin)}
+                  className="text-xs text-slate-400 hover:text-indigo-500 transition-colors flex items-center gap-1"
                 >
-                  {showPwd ? <FaEyeSlash /> : <FaEye />}
+                  <span className="font-mono">{showDevLogin ? '◀ Back to User Login' : '▶ Developer Access'}</span>
                 </button>
-                {pwdError && <p className="text-red-400 text-xs mt-1">{pwdError}</p>}
               </div>
+
+              {/* Developer Password Field - shown when dev mode is active */}
+              {showDevLogin ? (
+                <motion.div
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: 'auto' }}
+                  exit={{ opacity: 0, height: 0 }}
+                  className="relative space-y-4"
+                >
+                  <div>
+                    <label className="block text-xs font-medium text-indigo-500 dark:text-indigo-400 mb-1">
+                      Developer Password
+                    </label>
+                    <input
+                      type="password"
+                      value={devPassword}
+                      autoFocus
+                      onChange={(e) => {
+                        setDevPassword(e.target.value);
+                        setError("");
+                      }}
+                      className="w-full px-4 py-2.5 rounded-lg border border-indigo-300 dark:border-indigo-600 bg-white dark:bg-slate-700 text-slate-800 dark:text-white placeholder-slate-400 focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
+                      placeholder="Enter developer password"
+                      aria-label="Developer Password"
+                    />
+                    <p className="text-xs text-slate-400 mt-1">For authorized developers only</p>
+                  </div>
+                </motion.div>
+              ) : (
+                /* Normal Email/Password fields */
+                <>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Email</label>
+                    <input
+                      type="email"
+                      value={email}
+                      autoFocus
+                      onChange={e => {
+                        setEmail(e.target.value);
+                        setEmailError("");
+                        setError("");
+                      }}
+                      className={`w-full px-4 py-2.5 rounded-lg border ${emailError ? 'border-red-400' : 'border-slate-300 dark:border-slate-600'} bg-white dark:bg-slate-700 text-slate-800 dark:text-white placeholder-slate-400 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all`}
+                      placeholder="Enter your email"
+                      aria-label="Email address"
+                    />
+                    {emailError && <p className="text-red-400 text-xs mt-1">{emailError}</p>}
+                  </div>
+                  
+                  <div className="relative">
+                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Password</label>
+                    <input
+                      type={showPwd ? "text" : "password"}
+                      value={password}
+                      onChange={e => {
+                        setPassword(e.target.value);
+                        setPwdError("");
+                        setError("");
+                      }}
+                      className={`w-full px-4 py-2.5 pr-10 rounded-lg border ${pwdError ? 'border-red-400' : 'border-slate-300 dark:border-slate-600'} bg-white dark:bg-slate-700 text-slate-800 dark:text-white placeholder-slate-400 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all`}
+                      placeholder="Enter your password"
+                      aria-label="Password"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPwd(!showPwd)}
+                      className="absolute right-3 top-9 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"
+                      aria-label={showPwd ? "Hide password" : "Show password"}
+                    >
+                      {showPwd ? <FaEyeSlash /> : <FaEye />}
+                    </button>
+                    {pwdError && <p className="text-red-400 text-xs mt-1">{pwdError}</p>}
+                  </div>
+                </>
+              )}
               
               {error && (
                 <motion.div
@@ -298,22 +369,24 @@ const LoginPage = () => {
               
               <button
                 type="submit"
-                disabled={!(isEmailValid && isPwdValid)}
+                disabled={showDevLogin ? !devPassword : !(isEmailValid && isPwdValid)}
                 className="w-full bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white font-semibold py-3 rounded-lg shadow-lg disabled:opacity-50 disabled:cursor-not-allowed transition-all"
               >
-                Login
+                {showDevLogin ? 'Access Developer Console' : 'Login'}
               </button>
               
-              <p className="text-center text-sm text-slate-500 dark:text-slate-400">
-                Don't have an account?{" "}
-                <button
-                  type="button"
-                  onClick={() => navigate("/register")}
-                  className="text-blue-600 dark:text-blue-400 hover:underline font-medium"
-                >
-                  Register
-                </button>
-              </p>
+              {!showDevLogin && (
+                <p className="text-center text-sm text-slate-500 dark:text-slate-400">
+                  Don't have an account?{" "}
+                  <button
+                    type="button"
+                    onClick={() => navigate("/register")}
+                    className="text-blue-600 dark:text-blue-400 hover:underline font-medium"
+                  >
+                    Register
+                  </button>
+                </p>
+              )}
             </motion.form>
           )}
 

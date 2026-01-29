@@ -44,6 +44,7 @@ const AdminHome = () => {
   const [showNotifModal, setShowNotifModal] = useState(false);
   const [unseenCount, setUnseenCount] = useState(0);
   const [loading, setLoading] = useState(false);
+  const [initialLoading, setInitialLoading] = useState(true);
   const [error, setError] = useState("");
   const [depositRefreshTrigger, setDepositRefreshTrigger] = useState(0);
   
@@ -94,8 +95,8 @@ const AdminHome = () => {
   };
 
   // Fetch admin dashboard data
-  const fetchDashboardData = async () => {
-    setLoading(true);
+  const fetchDashboardData = async (isInitial = false) => {
+    if (isInitial) setLoading(true);
     try {
       // Fetch pending deposits
       try {
@@ -121,6 +122,7 @@ const AdminHome = () => {
       setError("Failed to load dashboard data");
     } finally {
       setLoading(false);
+      setInitialLoading(false);
     }
   };
 
@@ -133,7 +135,7 @@ const AdminHome = () => {
   // Fetch data on component mount
   useEffect(() => {
     fetchNotifications();
-    fetchDashboardData();
+    fetchDashboardData(true);
   }, [user.email, user.token]);
 
   useEffect(() => {
@@ -207,7 +209,7 @@ const AdminHome = () => {
     if (!validDepositId) { setError('Invalid deposit ID'); return; }
     const result = await depositAction({ token: user.token, action, depositRequestId: validDepositId });
     if (result.success) {
-      await fetchDashboardData();
+      await fetchDashboardData(false); // Silent refresh
       setError('');
       // Deposit action completed successfully
     } else if (result.status === 401 || result.status === 403) {
@@ -275,25 +277,25 @@ const AdminHome = () => {
           <div className="bg-white/90 dark:bg-slate-800/70 backdrop-blur-md rounded-2xl p-6 shadow-lg shadow-slate-900/5 border border-slate-200/60 dark:border-slate-700/50">
             <h4 className="text-sm font-semibold text-slate-700 dark:text-slate-200 mb-4 flex items-center gap-2">💰 Deposits</h4>
             <div className="space-y-2 text-xs">
-              <div className="flex justify-between"><span className="text-slate-500">Approved</span><span className="font-semibold text-emerald-600">{dashboardData.analytics.approvedDeposits}</span></div>
-              <div className="flex justify-between"><span className="text-slate-500">Pending</span><span className="font-semibold text-amber-500">{dashboardData.analytics.pendingDeposits}</span></div>
-              <div className="flex justify-between"><span className="text-slate-500">Rejected</span><span className="font-semibold text-rose-500">{dashboardData.analytics.rejectedDeposits}</span></div>
+              <div className="flex justify-between"><span className="text-slate-600 dark:text-slate-400">Approved</span><span className="font-semibold text-emerald-600">{dashboardData.analytics.approvedDeposits}</span></div>
+              <div className="flex justify-between"><span className="text-slate-600 dark:text-slate-400">Pending</span><span className="font-semibold text-amber-500">{dashboardData.analytics.pendingDeposits}</span></div>
+              <div className="flex justify-between"><span className="text-slate-600 dark:text-slate-400">Rejected</span><span className="font-semibold text-rose-500">{dashboardData.analytics.rejectedDeposits}</span></div>
             </div>
           </div>
           <div className="bg-white/90 dark:bg-slate-800/70 backdrop-blur-md rounded-2xl p-6 shadow-lg shadow-slate-900/5 border border-slate-200/60 dark:border-slate-700/50">
             <h4 className="text-sm font-semibold text-slate-700 dark:text-slate-200 mb-4 flex items-center gap-2">📋 Loans</h4>
             <div className="space-y-2 text-xs">
-              <div className="flex justify-between"><span className="text-slate-500">Active</span><span className="font-semibold text-blue-600">{dashboardData.analytics.activeLoans}</span></div>
-              <div className="flex justify-between"><span className="text-slate-500">Pending</span><span className="font-semibold text-amber-500">{dashboardData.analytics.pendingLoans}</span></div>
-              <div className="flex justify-between"><span className="text-slate-500">Rejected</span><span className="font-semibold text-rose-500">{dashboardData.analytics.rejectedLoans}</span></div>
+              <div className="flex justify-between"><span className="text-slate-600 dark:text-slate-400">Active</span><span className="font-semibold text-blue-600">{dashboardData.analytics.activeLoans}</span></div>
+              <div className="flex justify-between"><span className="text-slate-600 dark:text-slate-400">Pending</span><span className="font-semibold text-amber-500">{dashboardData.analytics.pendingLoans}</span></div>
+              <div className="flex justify-between"><span className="text-slate-600 dark:text-slate-400">Rejected</span><span className="font-semibold text-rose-500">{dashboardData.analytics.rejectedLoans}</span></div>
             </div>
           </div>
           <div className="bg-white/90 dark:bg-slate-800/70 backdrop-blur-md rounded-2xl p-6 shadow-lg shadow-slate-900/5 border border-slate-200/60 dark:border-slate-700/50">
-            <h4 className="text-sm font-semibold text-slate-700 dark:text-slate-200 mb-4 flex items-center gap-2">� Accounts</h4>
+            <h4 className="text-sm font-semibold text-slate-700 dark:text-slate-200 mb-4 flex items-center gap-2">👥 Accounts</h4>
             <div className="space-y-2 text-xs">
-              <div className="flex justify-between"><span className="text-slate-500">Verified</span><span className="font-semibold text-emerald-600">{dashboardData.analytics.verifiedAccounts}</span></div>
-              <div className="flex justify-between"><span className="text-slate-500">Pending</span><span className="font-semibold text-amber-500">{dashboardData.analytics.pendingAccounts}</span></div>
-              <div className="flex justify-between"><span className="text-slate-500">Suspended</span><span className="font-semibold text-rose-500">{dashboardData.analytics.suspendedAccounts}</span></div>
+              <div className="flex justify-between"><span className="text-slate-600 dark:text-slate-400">Verified</span><span className="font-semibold text-emerald-600">{dashboardData.analytics.verifiedAccounts}</span></div>
+              <div className="flex justify-between"><span className="text-slate-600 dark:text-slate-400">Pending</span><span className="font-semibold text-amber-500">{dashboardData.analytics.pendingAccounts}</span></div>
+              <div className="flex justify-between"><span className="text-slate-600 dark:text-slate-400">Suspended</span><span className="font-semibold text-rose-500">{dashboardData.analytics.suspendedAccounts}</span></div>
             </div>
           </div>
 
@@ -367,9 +369,9 @@ const AdminHome = () => {
                 </div>
                 {/* Account Status Breakdown */}
                 <div className="grid gap-5 md:grid-cols-3 mb-8">
-                  <div className="rounded-xl p-4 bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700"><div className="text-xs text-slate-500 mb-1">Verified Accounts</div><div className="text-2xl font-semibold text-emerald-600">{dashboardData.analytics.verifiedAccounts}</div></div>
-                  <div className="rounded-xl p-4 bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700"><div className="text-xs text-slate-500 mb-1">Pending Accounts</div><div className="text-2xl font-semibold text-amber-500">{dashboardData.analytics.pendingAccounts}</div></div>
-                  <div className="rounded-xl p-4 bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700"><div className="text-xs text-slate-500 mb-1">Suspended Accounts</div><div className="text-2xl font-semibold text-rose-500">{dashboardData.analytics.suspendedAccounts}</div></div>
+                  <div className="rounded-xl p-4 bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700"><div className="text-xs text-slate-600 dark:text-slate-400 mb-1">Verified Accounts</div><div className="text-2xl font-semibold text-emerald-600">{dashboardData.analytics.verifiedAccounts}</div></div>
+                  <div className="rounded-xl p-4 bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700"><div className="text-xs text-slate-600 dark:text-slate-400 mb-1">Pending Accounts</div><div className="text-2xl font-semibold text-amber-500">{dashboardData.analytics.pendingAccounts}</div></div>
+                  <div className="rounded-xl p-4 bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700"><div className="text-xs text-slate-600 dark:text-slate-400 mb-1">Suspended Accounts</div><div className="text-2xl font-semibold text-rose-500">{dashboardData.analytics.suspendedAccounts}</div></div>
                 </div>
                 {/* Loan & Deposit Request Breakdown */}
                 <div className="grid gap-6 md:grid-cols-2 mb-8">
@@ -394,7 +396,7 @@ const AdminHome = () => {
                 </div>
                 {/* Timestamp */}
                 {dashboardData.analytics.generatedAt && (
-                  <div className="text-[11px] text-slate-400 mb-4">Last Updated: {new Date(dashboardData.analytics.generatedAt).toLocaleString()}</div>
+                  <div className="text-[11px] text-slate-500 dark:text-slate-400 mb-4">Last Updated: {new Date(dashboardData.analytics.generatedAt).toLocaleString()}</div>
                 )}
                 {/* Monthly Performance */}
                 <div className="rounded-2xl bg-slate-50/70 dark:bg-slate-900/40 p-6 mb-6 border border-slate-200/60 dark:border-slate-700/60">
@@ -421,7 +423,7 @@ const AdminHome = () => {
             {activeTab === "deposits" && (
               <div className="p-8">
                 <h3 className="text-xl font-semibold text-slate-800 dark:text-slate-100 mb-6">Pending Deposit Requests</h3>
-                {loading ? (
+                {initialLoading ? (
                   <div className="py-16 text-center text-slate-500 dark:text-slate-400">Loading deposit requests...</div>
                 ) : dashboardData.pendingDeposits.length === 0 ? (
                   <div className="py-16 text-center text-slate-500 dark:text-slate-400">No pending deposit requests</div>
@@ -438,7 +440,7 @@ const AdminHome = () => {
                         <div>
                           <div className="text-base font-semibold text-slate-800 dark:text-slate-100 leading-tight mb-1">Account: {deposit.accountNumber}</div>
                           <div className="text-sm text-slate-500 dark:text-slate-400 mb-1">Amount: ₹{formatNumber(deposit.amount)}</div>
-                          <div className="text-xs text-slate-400 dark:text-slate-500">Reference: {deposit.referenceNumber || deposit.refferenceNumber}</div>
+                          <div className="text-xs text-slate-500 dark:text-slate-400">Reference: {deposit.referenceNumber || deposit.refferenceNumber}</div>
                         </div>
                         <div className="flex gap-3">
                           <button
@@ -702,7 +704,7 @@ const AccountVerificationPanel = ({ token }) => {
         <button disabled={loading} className="px-6 py-3 rounded-xl font-semibold text-sm bg-gradient-to-r from-blue-500 to-blue-600 text-white shadow hover:shadow-md disabled:opacity-60">{loading? 'Updating...' : 'Update'}</button>
       </form>
       {message && <div className="mt-3 text-sm text-slate-600 dark:text-slate-300">{toDisplayString(message)}</div>}
-      <p className="mt-4 text-[11px] text-slate-400">PATCH /api/account/updateAccountStatus/{'{accountNumber}'} body: {"{\"status\":\"VERIFIED|PENDING|SUSPENDED\"}"}</p>
+      <p className="mt-4 text-[11px] text-slate-500 dark:text-slate-400">PATCH /api/account/updateAccountStatus/{'{accountNumber}'} body: {"{\"status\":\"VERIFIED|PENDING|SUSPENDED\"}"}</p>
     </div>
   );
 };
@@ -760,7 +762,7 @@ const LoanStatusPanel = ({ token }) => {
         </div>
       </form>
       {message && <div className="mt-3 text-sm text-slate-600 dark:text-slate-300">{toDisplayString(message)}</div>}
-      <p className="mt-4 text-[11px] text-slate-400">POST /api/loan/status?loanId=..&status=APPROVED|REJECTED|PENDING&adminRemark=..</p>
+      <p className="mt-4 text-[11px] text-slate-500 dark:text-slate-400">POST /api/loan/status?loanId=..&status=APPROVED|REJECTED|PENDING&adminRemark=..</p>
     </div>
   );
 };

@@ -243,8 +243,15 @@ public class AccountService {
         accountRepository.save(account);
         auditService.record("ACCOUNT_INTEREST_UPDATE", "ACCOUNT", accountNumber, "SUCCESS",
             "rate=" + newInterestRate);
-        notificationService.sendNotification(account.getUser().getEmail(),
-                "The interest rate for your account has been updated to: " + newInterestRate);
+        
+        // Don't let notification failure break the operation
+        try {
+            notificationService.sendNotification(account.getUser().getEmail(),
+                    "The interest rate for your account has been updated to: " + newInterestRate);
+        } catch (Exception e) {
+            log.error("Failed to send interest rate update notification for account {}: {}", 
+                accountNumber, e.getMessage());
+        }
         return true;
     }
 

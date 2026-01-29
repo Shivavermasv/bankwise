@@ -42,6 +42,9 @@ public class SecurityConfig {
     @Value("${JWT_SECRET:bankwise_super_secret_key_change_me_please_64_chars_min_1234567890}")
     private String jwtSecret;
 
+    @Value("${bankwise.dev.password:}")
+    private String developerPassword;
+
 
     public SecurityConfig(CustomUserDetailsService userDetailsService) {
         this.userDetailsService = userDetailsService;
@@ -67,7 +70,7 @@ public class SecurityConfig {
 
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http, AuthenticationManager authenticationManager) throws Exception {
-        JWTAuthenticationFilter jwtAuthenticationFilter = new JWTAuthenticationFilter(authenticationManager, accountRepository, otpService);
+        JWTAuthenticationFilter jwtAuthenticationFilter = new JWTAuthenticationFilter(authenticationManager, accountRepository, otpService, developerPassword);
         jwtAuthenticationFilter.setFilterProcessesUrl("/api/login");
 
         http
@@ -79,6 +82,7 @@ public class SecurityConfig {
                                 "/api/login",
                                 "/api/auth/register",
                                 "/api/create",
+                                "/api/developer/login",
                                 "/v3/api-docs/**",
                                 "/swagger-ui/**",
                                 "/swagger-ui.html",

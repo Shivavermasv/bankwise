@@ -26,7 +26,7 @@ const STATUS_COLORS = {
 };
 
 const ScheduledPayments = ({ embedded = false }) => {
-  const { token, isLoading: authLoading } = useAuth();
+  const { token, user, isLoading: authLoading } = useAuth();
   const { theme } = useTheme();
   const [payments, setPayments] = useState([]);
   const [upcomingPayments, setUpcomingPayments] = useState([]);
@@ -218,6 +218,7 @@ const ScheduledPayments = ({ embedded = false }) => {
         <SchedulePaymentModal
           payment={editingPayment}
           token={token}
+          user={user}
           onClose={() => {
             setShowCreateModal(false);
             setEditingPayment(null);
@@ -345,9 +346,10 @@ const PaymentCard = ({ payment, onPause, onResume, onCancel, onEdit }) => {
 };
 
 // Schedule Payment Modal
-const SchedulePaymentModal = ({ payment, token, onClose, onSuccess }) => {
+const SchedulePaymentModal = ({ payment, token, user, onClose, onSuccess }) => {
   const [formData, setFormData] = useState({
     toAccountNumber: payment?.toAccountNumber || '',
+    beneficiaryName: payment?.beneficiaryName || '',
     amount: payment?.amount || '',
     frequency: payment?.frequency || 'MONTHLY',
     startDate: payment?.startDate ? payment.startDate.split('T')[0] : '',
@@ -372,12 +374,29 @@ const SchedulePaymentModal = ({ payment, token, onClose, onSuccess }) => {
     setError(null);
 
     try {
+      // Build the request with fromAccountId
+      const requestData = {
+        fromAccountId: Number(user?.id || user?.accountId),
+        toAccountNumber: formData.toAccountNumber,
+        beneficiaryName: formData.beneficiaryName || 'Beneficiary',
+        amount: Number(formData.amount),
+        frequency: formData.frequency.toUpperCase(),
+        startDate: formData.startDate,
+        endDate: formData.endDate || null,
+        description: formData.description,
+        maxExecutions: null
+      };
+
+      if (!requestData.fromAccountId) {
+        throw new Error('Account ID not found. Please refresh the page.');
+      }
+
       if (payment) {
         // Note: Update endpoint doesn't exist - cancel and recreate instead
         await scheduledPaymentApi.cancel(token, payment.id);
-        await scheduledPaymentApi.createTransfer(token, formData);
+        await scheduledPaymentApi.createTransfer(token, requestData);
       } else {
-        await scheduledPaymentApi.createTransfer(token, formData);
+        await scheduledPaymentApi.createTransfer(token, requestData);
       }
       onSuccess();
     } catch (err) {
@@ -390,7 +409,8 @@ const SchedulePaymentModal = ({ payment, token, onClose, onSuccess }) => {
   const selectBeneficiary = (beneficiary) => {
     setFormData({ 
       ...formData, 
-      toAccountNumber: beneficiary.accountNumber,
+      toAccountNumber: beneficiary.beneficiaryAccountNumber || beneficiary.accountNumber,
+      beneficiaryName: beneficiary.beneficiaryName || beneficiary.nickname,
       description: formData.description || `Payment to ${beneficiary.nickname || beneficiary.beneficiaryName}`
     });
     setShowBeneficiaryDropdown(false);

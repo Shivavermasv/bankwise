@@ -1,17 +1,19 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import Navbar from '../Layout/Navbar';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
+import { useNavigate } from 'react-router-dom';
 import { useTheme } from '../../context/ThemeContext.jsx';
 import { 
   FaServer, FaMemory, FaClock, FaChartLine, FaDatabase, 
   FaTicketAlt, FaSync, FaCheckCircle, FaExclamationTriangle,
-  FaNetworkWired, FaCode, FaTerminal
+  FaNetworkWired, FaTerminal, FaFileAlt, FaPlay, FaTimes,
+  FaCheck, FaSpinner, FaCode, FaSearch, FaCopy, FaEye,
+  FaSignOutAlt, FaHeartbeat, FaMoon, FaSun
 } from 'react-icons/fa';
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || '';
 
 // Stat Card Component
-const StatCard = ({ icon: Icon, label, value, subValue, color = 'blue', trend }) => (
+const StatCard = ({ icon: Icon, label, value, subValue, color = 'blue' }) => (
   <motion.div 
     initial={{ opacity: 0, y: 20 }}
     animate={{ opacity: 1, y: 0 }}
@@ -21,97 +23,74 @@ const StatCard = ({ icon: Icon, label, value, subValue, color = 'blue', trend })
       <div className={`p-3 rounded-xl bg-${color}-100 dark:bg-${color}-900/30`}>
         <Icon className={`text-xl text-${color}-600 dark:text-${color}-400`} />
       </div>
-      {trend && (
-        <span className={`text-xs font-medium px-2 py-1 rounded-full ${
-          trend > 0 ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400' : 
-          'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
-        }`}>
-          {trend > 0 ? '+' : ''}{trend}%
-        </span>
-      )}
     </div>
     <div className="mt-4">
       <p className="text-2xl font-bold text-slate-800 dark:text-white">{value}</p>
-      <p className="text-sm text-slate-500 dark:text-slate-400">{label}</p>
-      {subValue && <p className="text-xs text-slate-400 mt-1">{subValue}</p>}
+      <p className="text-sm text-slate-600 dark:text-slate-400">{label}</p>
+      {subValue && <p className="text-xs text-slate-500 dark:text-slate-500 mt-1">{subValue}</p>}
     </div>
   </motion.div>
 );
 
-// Endpoint Performance Row
-const EndpointRow = ({ endpoint, count, avgTime }) => {
-  const getTimeColor = (ms) => {
-    if (ms < 200) return 'text-emerald-600 dark:text-emerald-400';
-    if (ms < 500) return 'text-amber-600 dark:text-amber-400';
-    return 'text-red-600 dark:text-red-400';
-  };
-
-  return (
-    <tr className="border-b border-slate-100 dark:border-slate-700/50 hover:bg-slate-50 dark:hover:bg-slate-800/50">
-      <td className="py-3 px-4 font-mono text-sm text-slate-700 dark:text-slate-300">{endpoint}</td>
-      <td className="py-3 px-4 text-right text-slate-600 dark:text-slate-400">{count.toLocaleString()}</td>
-      <td className={`py-3 px-4 text-right font-medium ${getTimeColor(avgTime)}`}>
-        {avgTime.toFixed(0)}ms
-      </td>
-    </tr>
-  );
-};
-
-// Support Ticket Row
-const TicketRow = ({ ticket }) => {
-  const statusColors = {
-    OPEN: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400',
-    IN_PROGRESS: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
-    RESOLVED: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400',
-    CLOSED: 'bg-slate-100 text-slate-700 dark:bg-slate-700 dark:text-slate-400'
-  };
-
-  return (
-    <tr className="border-b border-slate-100 dark:border-slate-700/50">
-      <td className="py-3 px-4 text-slate-700 dark:text-slate-300">#{ticket.id}</td>
-      <td className="py-3 px-4 text-slate-600 dark:text-slate-400 max-w-xs truncate">{ticket.subject}</td>
-      <td className="py-3 px-4">
-        <span className={`text-xs px-2 py-1 rounded-full ${statusColors[ticket.status] || statusColors.OPEN}`}>
-          {ticket.status}
-        </span>
-      </td>
-      <td className="py-3 px-4 text-sm text-slate-500 dark:text-slate-400">
-        {new Date(ticket.createdAt).toLocaleDateString()}
-      </td>
-    </tr>
-  );
-};
+// Tab Button Component
+const TabButton = ({ active, onClick, icon: Icon, label, count }) => (
+  <button
+    onClick={onClick}
+    className={`flex items-center gap-2 px-5 py-2.5 rounded-xl font-medium transition-all ${
+      active 
+        ? 'bg-indigo-600 text-white shadow-lg' 
+        : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700'
+    }`}
+  >
+    <Icon className="text-lg" />
+    {label}
+    {count !== undefined && (
+      <span className={`ml-1 px-2 py-0.5 rounded-full text-xs ${
+        active ? 'bg-white/20' : 'bg-slate-200 dark:bg-slate-600'
+      }`}>
+        {count}
+      </span>
+    )}
+  </button>
+);
 
 const DeveloperDashboard = () => {
-  const { theme } = useTheme();
+  const { theme, toggleTheme } = useTheme();
+  const navigate = useNavigate();
   const user = JSON.parse(sessionStorage.getItem('user') || '{}');
+  const [activeTab, setActiveTab] = useState('analytics');
   const [analytics, setAnalytics] = useState(null);
   const [tickets, setTickets] = useState([]);
+  const [logFiles, setLogFiles] = useState([]);
+  const [logContent, setLogContent] = useState(null);
+  const [apiEndpoints, setApiEndpoints] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [lastRefresh, setLastRefresh] = useState(null);
+  const [selectedTicket, setSelectedTicket] = useState(null);
+  const [resolution, setResolution] = useState('');
+  const [apiTestResult, setApiTestResult] = useState(null);
+  const [apiSearchQuery, setApiSearchQuery] = useState('');
 
+  const headers = { 'Authorization': `Bearer ${user.token}` };
+
+  // Fetch all data
   const fetchData = useCallback(async () => {
     try {
       setLoading(true);
-      const headers = { 'Authorization': `Bearer ${user.token}` };
-
-      const [analyticsRes, ticketsRes] = await Promise.all([
+      const [analyticsRes, ticketsRes, endpointsRes] = await Promise.all([
         fetch(`${API_BASE}/api/system/analytics`, { headers }),
-        fetch(`${API_BASE}/api/system/support-tickets`, { headers })
+        fetch(`${API_BASE}/api/developer/tickets`, { headers }),
+        fetch(`${API_BASE}/api/developer/api-endpoints`, { headers })
       ]);
 
-      if (!analyticsRes.ok || !ticketsRes.ok) {
-        throw new Error('Failed to fetch system data');
+      if (analyticsRes.ok) setAnalytics(await analyticsRes.json());
+      if (ticketsRes.ok) setTickets(await ticketsRes.json());
+      if (endpointsRes.ok) {
+        const data = await endpointsRes.json();
+        setApiEndpoints(data.endpoints || []);
       }
 
-      const [analyticsData, ticketsData] = await Promise.all([
-        analyticsRes.json(),
-        ticketsRes.json()
-      ]);
-
-      setAnalytics(analyticsData);
-      setTickets(Array.isArray(ticketsData) ? ticketsData : []);
       setLastRefresh(new Date());
       setError(null);
     } catch (err) {
@@ -121,38 +100,171 @@ const DeveloperDashboard = () => {
     }
   }, [user.token]);
 
+  const fetchLogs = async () => {
+    try {
+      const res = await fetch(`${API_BASE}/api/developer/logs`, { headers });
+      if (res.ok) {
+        const data = await res.json();
+        setLogFiles(data.files || []);
+      }
+    } catch (err) {
+      console.error('Failed to fetch logs', err);
+    }
+  };
+
+  const readLogFile = async (filename) => {
+    try {
+      const res = await fetch(`${API_BASE}/api/developer/logs/${filename}?lines=500`, { headers });
+      if (res.ok) {
+        setLogContent(await res.json());
+      }
+    } catch (err) {
+      console.error('Failed to read log', err);
+    }
+  };
+
+  const updateTicketStatus = async (ticketId, status) => {
+    try {
+      const res = await fetch(`${API_BASE}/api/developer/tickets/${ticketId}/status`, {
+        method: 'PUT',
+        headers: { ...headers, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status, resolution })
+      });
+      if (res.ok) {
+        fetchData();
+        setSelectedTicket(null);
+        setResolution('');
+      }
+    } catch (err) {
+      console.error('Failed to update ticket', err);
+    }
+  };
+
+  // Health Check - Only ping endpoints to check if they're up (no data modification)
+  const [healthCheckResults, setHealthCheckResults] = useState({});
+  const [isHealthChecking, setIsHealthChecking] = useState(false);
+
+  const runHealthCheck = async () => {
+    setIsHealthChecking(true);
+    const results = {};
+    
+    // Only check system/public endpoints that don't require user context
+    const healthEndpoints = [
+      { path: '/api/system/ping', name: 'System Ping' },
+      { path: '/api/system/health', name: 'System Health' },
+      { path: '/api/system/analytics', name: 'System Analytics' },
+      { path: '/api/developer/tickets', name: 'Developer Tickets' },
+      { path: '/api/developer/logs', name: 'Developer Logs' },
+      { path: '/api/developer/api-endpoints', name: 'API Documentation' },
+    ];
+
+    for (const ep of healthEndpoints) {
+      try {
+        const startTime = Date.now();
+        const res = await fetch(`${API_BASE}${ep.path}`, {
+          method: 'GET',
+          headers
+        });
+        const duration = Date.now() - startTime;
+        results[ep.path] = {
+          name: ep.name,
+          status: res.status,
+          duration,
+          healthy: res.status >= 200 && res.status < 400
+        };
+      } catch (err) {
+        results[ep.path] = {
+          name: ep.name,
+          status: 0,
+          duration: 0,
+          healthy: false,
+          error: err.message
+        };
+      }
+    }
+    
+    setHealthCheckResults(results);
+    setIsHealthChecking(false);
+  };
+
+  const handleLogout = () => {
+    sessionStorage.removeItem('user');
+    sessionStorage.removeItem('token');
+    navigate('/login');
+  };
+
   useEffect(() => {
     fetchData();
-    // Auto-refresh every 30 seconds
     const interval = setInterval(fetchData, 30000);
     return () => clearInterval(interval);
   }, [fetchData]);
 
+  useEffect(() => {
+    if (activeTab === 'logs') fetchLogs();
+  }, [activeTab]);
+
   const endpoints = analytics?.endpoints ? Object.entries(analytics.endpoints)
     .map(([endpoint, data]) => ({ endpoint, ...data }))
     .sort((a, b) => b.count - a.count)
-    .slice(0, 15) : [];
+    .slice(0, 20) : [];
+
+  const filteredEndpoints = apiEndpoints.filter(ep => 
+    apiSearchQuery === '' || 
+    ep.path.toLowerCase().includes(apiSearchQuery.toLowerCase()) ||
+    ep.description.toLowerCase().includes(apiSearchQuery.toLowerCase())
+  );
+
+  const openTickets = tickets.filter(t => t.status === 'OPEN' || t.status === 'IN_PROGRESS').length;
 
   return (
-    <div className={`min-h-screen pt-16 ${theme === 'dark' ? 'bg-slate-900' : 'bg-gradient-to-br from-slate-50 to-indigo-50'}`}>
-      <Navbar />
+    <div className={`min-h-screen ${theme === 'dark' ? 'bg-slate-900' : 'bg-gradient-to-br from-slate-50 to-indigo-50'}`}>
+      {/* Custom Developer Header - No User Navbar */}
+      <div className="bg-slate-900 border-b border-slate-800 px-6 py-3">
+        <div className="max-w-7xl mx-auto flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="bg-indigo-600 p-2 rounded-lg">
+              <FaTerminal className="text-white text-lg" />
+            </div>
+            <div>
+              <h1 className="text-white font-bold">Bankwise Developer Console</h1>
+              <p className="text-slate-400 text-xs">System Administration</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-4">
+            <button
+              onClick={toggleTheme}
+              className="p-2 text-slate-400 hover:text-white transition-colors"
+              title="Toggle Theme"
+            >
+              {theme === 'dark' ? <FaSun /> : <FaMoon />}
+            </button>
+            <button
+              onClick={handleLogout}
+              className="flex items-center gap-2 px-4 py-2 bg-red-600/20 hover:bg-red-600/30 text-red-400 rounded-lg transition-colors"
+            >
+              <FaSignOutAlt />
+              <span className="text-sm">Logout</span>
+            </button>
+          </div>
+        </div>
+      </div>
       
       <div className="max-w-7xl mx-auto px-4 py-8">
         {/* Header */}
-        <div className="flex items-center justify-between mb-8">
+        <div className="flex flex-col md:flex-row items-start md:items-center justify-between mb-8 gap-4">
           <div>
             <h1 className="text-3xl font-bold text-slate-800 dark:text-white flex items-center gap-3">
               <FaTerminal className="text-indigo-600" />
               Developer Console
             </h1>
-            <p className="text-slate-500 dark:text-slate-400 mt-1">
-              System analytics and monitoring • Last updated: {lastRefresh?.toLocaleTimeString() || 'Never'}
+            <p className="text-slate-600 dark:text-slate-400 mt-1">
+              System monitoring, logs & API testing • {lastRefresh?.toLocaleTimeString() || 'Loading...'}
             </p>
           </div>
           <button
             onClick={fetchData}
             disabled={loading}
-            className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg transition-colors disabled:opacity-50"
+            className="flex items-center gap-2 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl transition-colors disabled:opacity-50 font-medium"
           >
             <FaSync className={loading ? 'animate-spin' : ''} />
             Refresh
@@ -165,122 +277,472 @@ const DeveloperDashboard = () => {
           </div>
         )}
 
-        {/* Stats Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-          <StatCard
-            icon={FaClock}
-            label="System Uptime"
-            value={analytics?.uptime?.formatted || '--'}
-            subValue={`Started: ${analytics?.startedAt?.split('T')[0] || '--'}`}
-            color="emerald"
-          />
-          <StatCard
-            icon={FaMemory}
-            label="Memory Usage"
-            value={`${analytics?.memory?.usedMB || 0} MB`}
-            subValue={`${analytics?.memory?.percentage || 0}% of ${analytics?.memory?.maxMB || 0} MB`}
-            color="blue"
-          />
-          <StatCard
-            icon={FaChartLine}
-            label="Total Requests"
-            value={(analytics?.requests?.total || 0).toLocaleString()}
-            subValue={`${(analytics?.requests?.successRate || 100).toFixed(1)}% success rate`}
-            color="purple"
-          />
-          <StatCard
-            icon={FaExclamationTriangle}
-            label="Errors"
-            value={(analytics?.requests?.errors || 0).toLocaleString()}
-            color="amber"
-          />
+        {/* Tab Navigation */}
+        <div className="flex flex-wrap gap-2 mb-8 p-1 bg-slate-100 dark:bg-slate-800/50 rounded-2xl">
+          <TabButton active={activeTab === 'analytics'} onClick={() => setActiveTab('analytics')} icon={FaChartLine} label="Analytics" />
+          <TabButton active={activeTab === 'tickets'} onClick={() => setActiveTab('tickets')} icon={FaTicketAlt} label="Tickets" count={openTickets} />
+          <TabButton active={activeTab === 'logs'} onClick={() => setActiveTab('logs')} icon={FaFileAlt} label="Logs" />
+          <TabButton active={activeTab === 'api'} onClick={() => setActiveTab('api')} icon={FaHeartbeat} label="Health Check" />
         </div>
 
-        {/* Database Stats */}
-        <div className="bg-white dark:bg-slate-800 rounded-xl p-6 shadow-lg border border-slate-200/50 dark:border-slate-700/50 mb-8">
-          <h2 className="text-lg font-semibold text-slate-800 dark:text-white mb-4 flex items-center gap-2">
-            <FaDatabase className="text-indigo-600" />
-            Database Statistics
-          </h2>
-          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-4">
-            {analytics?.database && Object.entries(analytics.database).map(([key, value]) => (
-              <div key={key} className="text-center p-4 bg-slate-50 dark:bg-slate-700/50 rounded-xl">
-                <p className="text-2xl font-bold text-indigo-600 dark:text-indigo-400">{value.toLocaleString()}</p>
-                <p className="text-sm text-slate-500 dark:text-slate-400 capitalize">{key}</p>
+        {/* Analytics Tab */}
+        {activeTab === 'analytics' && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+            {/* Stats Grid */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+              <StatCard
+                icon={FaClock}
+                label="System Uptime"
+                value={analytics?.uptime?.uptimeMs ? `${Math.floor(analytics.uptime.uptimeMs / 3600000)}h ${Math.floor((analytics.uptime.uptimeMs % 3600000) / 60000)}m` : '--'}
+                subValue={`Started: ${analytics?.uptime?.startedAt?.split('T')[0] || '--'}`}
+                color="emerald"
+              />
+              <StatCard
+                icon={FaMemory}
+                label="Memory Usage"
+                value={`${analytics?.memory?.usedMB || 0} MB`}
+                subValue={`${analytics?.memory?.usagePercent || 0}% of ${analytics?.memory?.maxMB || 0} MB`}
+                color="blue"
+              />
+              <StatCard
+                icon={FaChartLine}
+                label="Total Requests"
+                value={(analytics?.requests?.total || 0).toLocaleString()}
+                subValue={`${(analytics?.requests?.successRate || 100).toFixed(1)}% success`}
+                color="purple"
+              />
+              <StatCard
+                icon={FaExclamationTriangle}
+                label="Errors"
+                value={(analytics?.requests?.errors || 0).toLocaleString()}
+                color="amber"
+              />
+            </div>
+
+            {/* Database & Redis Stats */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
+              <div className="bg-white dark:bg-slate-800 rounded-xl p-6 shadow-lg border border-slate-200/50 dark:border-slate-700/50">
+                <h2 className="text-lg font-semibold text-slate-800 dark:text-white mb-4 flex items-center gap-2">
+                  <FaDatabase className="text-indigo-600" />
+                  Database Statistics
+                </h2>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  {analytics?.database && Object.entries(analytics.database).map(([key, value]) => (
+                    <div key={key} className="text-center p-4 bg-slate-50 dark:bg-slate-700/50 rounded-xl">
+                      <p className="text-2xl font-bold text-indigo-600 dark:text-indigo-400">{value.toLocaleString()}</p>
+                      <p className="text-sm text-slate-600 dark:text-slate-400 capitalize">{key}</p>
+                    </div>
+                  ))}
+                </div>
               </div>
-            ))}
-          </div>
-        </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          {/* Endpoint Performance */}
-          <div className="bg-white dark:bg-slate-800 rounded-xl p-6 shadow-lg border border-slate-200/50 dark:border-slate-700/50">
-            <h2 className="text-lg font-semibold text-slate-800 dark:text-white mb-4 flex items-center gap-2">
-              <FaNetworkWired className="text-indigo-600" />
-              API Endpoint Performance
-            </h2>
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead>
-                  <tr className="text-left text-sm text-slate-500 dark:text-slate-400 border-b border-slate-200 dark:border-slate-700">
-                    <th className="py-2 px-4">Endpoint</th>
-                    <th className="py-2 px-4 text-right">Requests</th>
-                    <th className="py-2 px-4 text-right">Avg Time</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {endpoints.map((ep) => (
-                    <EndpointRow 
-                      key={ep.endpoint} 
-                      endpoint={ep.endpoint}
-                      count={ep.count}
-                      avgTime={ep.avgResponseTimeMs}
-                    />
-                  ))}
-                  {endpoints.length === 0 && (
-                    <tr>
-                      <td colSpan={3} className="py-8 text-center text-slate-500">No data yet</td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
+              <div className="bg-white dark:bg-slate-800 rounded-xl p-6 shadow-lg border border-slate-200/50 dark:border-slate-700/50">
+                <h2 className="text-lg font-semibold text-slate-800 dark:text-white mb-4 flex items-center gap-2">
+                  <FaServer className="text-indigo-600" />
+                  Redis Cache & JVM
+                </h2>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="p-4 bg-slate-50 dark:bg-slate-700/50 rounded-xl">
+                    <p className={`text-lg font-bold ${analytics?.redis?.status === 'UP' ? 'text-emerald-600' : 'text-red-600'}`}>
+                      {analytics?.redis?.status || 'Unknown'}
+                    </p>
+                    <p className="text-sm text-slate-600 dark:text-slate-400">Redis Status</p>
+                  </div>
+                  <div className="p-4 bg-slate-50 dark:bg-slate-700/50 rounded-xl">
+                    <p className="text-lg font-bold text-indigo-600 dark:text-indigo-400">{analytics?.jvm?.processors || '--'}</p>
+                    <p className="text-sm text-slate-600 dark:text-slate-400">CPU Cores</p>
+                  </div>
+                  <div className="p-4 bg-slate-50 dark:bg-slate-700/50 rounded-xl">
+                    <p className="text-lg font-bold text-amber-600 dark:text-amber-400">{analytics?.threads?.active || '--'}</p>
+                    <p className="text-sm text-slate-600 dark:text-slate-400">Active Threads</p>
+                  </div>
+                  <div className="p-4 bg-slate-50 dark:bg-slate-700/50 rounded-xl">
+                    <p className="text-lg font-bold text-purple-600 dark:text-purple-400">{analytics?.threads?.peak || '--'}</p>
+                    <p className="text-sm text-slate-600 dark:text-slate-400">Peak Threads</p>
+                  </div>
+                </div>
+              </div>
             </div>
-          </div>
 
-          {/* Support Tickets */}
-          <div className="bg-white dark:bg-slate-800 rounded-xl p-6 shadow-lg border border-slate-200/50 dark:border-slate-700/50">
-            <h2 className="text-lg font-semibold text-slate-800 dark:text-white mb-4 flex items-center gap-2">
-              <FaTicketAlt className="text-indigo-600" />
-              Support Tickets ({tickets.length})
-            </h2>
-            <div className="overflow-x-auto max-h-96 overflow-y-auto">
-              <table className="w-full">
-                <thead className="sticky top-0 bg-white dark:bg-slate-800">
-                  <tr className="text-left text-sm text-slate-500 dark:text-slate-400 border-b border-slate-200 dark:border-slate-700">
-                    <th className="py-2 px-4">ID</th>
-                    <th className="py-2 px-4">Subject</th>
-                    <th className="py-2 px-4">Status</th>
-                    <th className="py-2 px-4">Date</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {tickets.slice(0, 10).map((ticket) => (
-                    <TicketRow key={ticket.id} ticket={ticket} />
-                  ))}
-                  {tickets.length === 0 && (
-                    <tr>
-                      <td colSpan={4} className="py-8 text-center text-slate-500">No tickets</td>
+            {/* Endpoint Performance */}
+            <div className="bg-white dark:bg-slate-800 rounded-xl p-6 shadow-lg border border-slate-200/50 dark:border-slate-700/50">
+              <h2 className="text-lg font-semibold text-slate-800 dark:text-white mb-4 flex items-center gap-2">
+                <FaNetworkWired className="text-indigo-600" />
+                API Endpoint Performance (Top 20)
+              </h2>
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead>
+                    <tr className="text-left text-sm text-slate-600 dark:text-slate-400 border-b border-slate-200 dark:border-slate-700">
+                      <th className="py-3 px-4">Endpoint</th>
+                      <th className="py-3 px-4 text-right">Requests</th>
+                      <th className="py-3 px-4 text-right">Avg Response</th>
                     </tr>
-                  )}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {endpoints.map((ep) => (
+                      <tr key={ep.endpoint} className="border-b border-slate-100 dark:border-slate-700/50 hover:bg-slate-50 dark:hover:bg-slate-700/30">
+                        <td className="py-3 px-4 font-mono text-sm text-slate-700 dark:text-slate-300">{ep.endpoint}</td>
+                        <td className="py-3 px-4 text-right text-slate-600 dark:text-slate-400">{ep.count.toLocaleString()}</td>
+                        <td className={`py-3 px-4 text-right font-medium ${
+                          ep.avgMs < 200 ? 'text-emerald-600' : ep.avgMs < 500 ? 'text-amber-600' : 'text-red-600'
+                        }`}>
+                          {ep.avgMs?.toFixed(0) || 0}ms
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
-          </div>
-        </div>
+          </motion.div>
+        )}
 
-        {/* System Health */}
+        {/* Tickets Tab */}
+        {activeTab === 'tickets' && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+            <div className="bg-white dark:bg-slate-800 rounded-xl p-6 shadow-lg border border-slate-200/50 dark:border-slate-700/50">
+              <h2 className="text-lg font-semibold text-slate-800 dark:text-white mb-6 flex items-center gap-2">
+                <FaTicketAlt className="text-indigo-600" />
+                Support Tickets ({tickets.length})
+              </h2>
+              
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead>
+                    <tr className="text-left text-sm text-slate-600 dark:text-slate-400 border-b border-slate-200 dark:border-slate-700">
+                      <th className="py-3 px-4">ID</th>
+                      <th className="py-3 px-4">User</th>
+                      <th className="py-3 px-4">Subject</th>
+                      <th className="py-3 px-4">Priority</th>
+                      <th className="py-3 px-4">Status</th>
+                      <th className="py-3 px-4">Created</th>
+                      <th className="py-3 px-4">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {tickets.map((ticket) => (
+                      <tr key={ticket.id} className="border-b border-slate-100 dark:border-slate-700/50 hover:bg-slate-50 dark:hover:bg-slate-700/30">
+                        <td className="py-3 px-4 text-slate-700 dark:text-slate-300">#{ticket.id}</td>
+                        <td className="py-3 px-4 text-slate-600 dark:text-slate-400">{ticket.userName || ticket.userEmail}</td>
+                        <td className="py-3 px-4 text-slate-600 dark:text-slate-400 max-w-xs truncate">{ticket.subject}</td>
+                        <td className="py-3 px-4">
+                          <span className={`text-xs px-2 py-1 rounded-full ${
+                            ticket.priority === 'HIGH' ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400' :
+                            ticket.priority === 'MEDIUM' ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400' :
+                            'bg-slate-100 text-slate-700 dark:bg-slate-700 dark:text-slate-400'
+                          }`}>
+                            {ticket.priority}
+                          </span>
+                        </td>
+                        <td className="py-3 px-4">
+                          <span className={`text-xs px-2 py-1 rounded-full ${
+                            ticket.status === 'OPEN' ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400' :
+                            ticket.status === 'IN_PROGRESS' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400' :
+                            ticket.status === 'RESOLVED' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400' :
+                            'bg-slate-100 text-slate-700 dark:bg-slate-700 dark:text-slate-400'
+                          }`}>
+                            {ticket.status}
+                          </span>
+                        </td>
+                        <td className="py-3 px-4 text-sm text-slate-500 dark:text-slate-400">
+                          {new Date(ticket.createdAt).toLocaleDateString()}
+                        </td>
+                        <td className="py-3 px-4">
+                          <div className="flex gap-2">
+                            <button
+                              onClick={() => setSelectedTicket(ticket)}
+                              className="p-2 text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 rounded-lg"
+                              title="View Details"
+                            >
+                              <FaEye />
+                            </button>
+                            {ticket.status !== 'RESOLVED' && ticket.status !== 'CLOSED' && (
+                              <button
+                                onClick={() => updateTicketStatus(ticket.id, 'RESOLVED')}
+                                className="p-2 text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-900/30 rounded-lg"
+                                title="Mark Resolved"
+                              >
+                                <FaCheck />
+                              </button>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* Ticket Detail Modal */}
+            <AnimatePresence>
+              {selectedTicket && (
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50"
+                  onClick={() => setSelectedTicket(null)}
+                >
+                  <motion.div
+                    initial={{ scale: 0.9, opacity: 0 }}
+                    animate={{ scale: 1, opacity: 1 }}
+                    exit={{ scale: 0.9, opacity: 0 }}
+                    className="bg-white dark:bg-slate-800 rounded-2xl p-6 max-w-2xl w-full max-h-[90vh] overflow-y-auto shadow-2xl"
+                    onClick={e => e.stopPropagation()}
+                  >
+                    <div className="flex justify-between items-start mb-6">
+                      <h3 className="text-xl font-bold text-slate-800 dark:text-white">
+                        Ticket #{selectedTicket.id}
+                      </h3>
+                      <button onClick={() => setSelectedTicket(null)} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg">
+                        <FaTimes />
+                      </button>
+                    </div>
+
+                    <div className="space-y-4">
+                      <div className="grid grid-cols-2 gap-4">
+                        <div><span className="text-slate-500 text-sm">User:</span><p className="font-medium text-slate-800 dark:text-white">{selectedTicket.userName}</p></div>
+                        <div><span className="text-slate-500 text-sm">Email:</span><p className="font-medium text-slate-800 dark:text-white">{selectedTicket.userEmail}</p></div>
+                        <div><span className="text-slate-500 text-sm">Category:</span><p className="font-medium text-slate-800 dark:text-white">{selectedTicket.category}</p></div>
+                        <div><span className="text-slate-500 text-sm">Priority:</span><p className="font-medium text-slate-800 dark:text-white">{selectedTicket.priority}</p></div>
+                      </div>
+
+                      <div>
+                        <span className="text-slate-500 text-sm">Subject:</span>
+                        <p className="font-semibold text-slate-800 dark:text-white mt-1">{selectedTicket.subject}</p>
+                      </div>
+
+                      <div>
+                        <span className="text-slate-500 text-sm">Description:</span>
+                        <p className="text-slate-700 dark:text-slate-300 mt-1 whitespace-pre-wrap bg-slate-50 dark:bg-slate-900/50 p-4 rounded-xl">
+                          {selectedTicket.description}
+                        </p>
+                      </div>
+
+                      {selectedTicket.status !== 'RESOLVED' && selectedTicket.status !== 'CLOSED' && (
+                        <div>
+                          <label className="text-slate-500 text-sm">Resolution Notes:</label>
+                          <textarea
+                            value={resolution}
+                            onChange={(e) => setResolution(e.target.value)}
+                            className="w-full mt-2 p-3 rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-800 dark:text-white"
+                            rows={3}
+                            placeholder="Add resolution notes..."
+                          />
+                        </div>
+                      )}
+
+                      <div className="flex gap-3 pt-4">
+                        {selectedTicket.status === 'OPEN' && (
+                          <button
+                            onClick={() => updateTicketStatus(selectedTicket.id, 'IN_PROGRESS')}
+                            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                          >
+                            Mark In Progress
+                          </button>
+                        )}
+                        {selectedTicket.status !== 'RESOLVED' && selectedTicket.status !== 'CLOSED' && (
+                          <button
+                            onClick={() => updateTicketStatus(selectedTicket.id, 'RESOLVED')}
+                            className="px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700"
+                          >
+                            Mark Resolved
+                          </button>
+                        )}
+                        {selectedTicket.status !== 'CLOSED' && (
+                          <button
+                            onClick={() => updateTicketStatus(selectedTicket.id, 'CLOSED')}
+                            className="px-4 py-2 bg-slate-600 text-white rounded-lg hover:bg-slate-700"
+                          >
+                            Close Ticket
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  </motion.div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </motion.div>
+        )}
+
+        {/* Logs Tab */}
+        {activeTab === 'logs' && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+            <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+              {/* Log Files List */}
+              <div className="bg-white dark:bg-slate-800 rounded-xl p-6 shadow-lg border border-slate-200/50 dark:border-slate-700/50">
+                <h3 className="text-lg font-semibold text-slate-800 dark:text-white mb-4 flex items-center gap-2">
+                  <FaFileAlt className="text-indigo-600" />
+                  Log Files
+                </h3>
+                <div className="space-y-2">
+                  {logFiles.length === 0 ? (
+                    <p className="text-slate-500 dark:text-slate-400 text-sm">No log files available (console-only logging on Railway)</p>
+                  ) : (
+                    logFiles.map((file) => (
+                      <button
+                        key={file.name}
+                        onClick={() => readLogFile(file.name)}
+                        className={`w-full text-left p-3 rounded-xl transition-colors ${
+                          logContent?.filename === file.name 
+                            ? 'bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-400' 
+                            : 'hover:bg-slate-100 dark:hover:bg-slate-700'
+                        }`}
+                      >
+                        <p className="font-medium text-slate-800 dark:text-white text-sm">{file.name}</p>
+                        <p className="text-xs text-slate-500 dark:text-slate-400">
+                          {(file.size / 1024).toFixed(1)} KB
+                        </p>
+                      </button>
+                    ))
+                  )}
+                </div>
+              </div>
+
+              {/* Log Content */}
+              <div className="lg:col-span-3 bg-white dark:bg-slate-800 rounded-xl p-6 shadow-lg border border-slate-200/50 dark:border-slate-700/50">
+                <div className="flex justify-between items-center mb-4">
+                  <h3 className="text-lg font-semibold text-slate-800 dark:text-white">
+                    {logContent ? logContent.filename : 'Select a log file'}
+                  </h3>
+                  {logContent && (
+                    <span className="text-sm text-slate-500 dark:text-slate-400">
+                      Lines: {logContent.returnedLines} / {logContent.totalLines}
+                    </span>
+                  )}
+                </div>
+                <pre className="bg-slate-900 text-green-400 p-4 rounded-xl overflow-x-auto max-h-[60vh] overflow-y-auto font-mono text-sm">
+                  {logContent?.content || 'No log content to display. Select a file from the list or logs are console-only on Railway.'}
+                </pre>
+              </div>
+            </div>
+          </motion.div>
+        )}
+
+        {/* API Health Check Tab */}
+        {activeTab === 'api' && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* Endpoint Health Check */}
+              <div className="bg-white dark:bg-slate-800 rounded-xl p-6 shadow-lg border border-slate-200/50 dark:border-slate-700/50">
+                <div className="flex items-center justify-between mb-6">
+                  <h3 className="text-lg font-semibold text-slate-800 dark:text-white flex items-center gap-2">
+                    <FaHeartbeat className="text-indigo-600" />
+                    Endpoint Health Check
+                  </h3>
+                  <button
+                    onClick={runHealthCheck}
+                    disabled={isHealthChecking}
+                    className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl transition-colors disabled:opacity-50"
+                  >
+                    {isHealthChecking ? <FaSpinner className="animate-spin" /> : <FaPlay />}
+                    Run Health Check
+                  </button>
+                </div>
+
+                <p className="text-sm text-slate-500 dark:text-slate-400 mb-4">
+                  Tests read-only endpoints to verify they are responding. No data modification is performed.
+                </p>
+
+                <div className="space-y-3">
+                  {Object.entries(healthCheckResults).length === 0 ? (
+                    <div className="text-center py-12 text-slate-500 dark:text-slate-400">
+                      <FaHeartbeat className="text-4xl mx-auto mb-4 opacity-50" />
+                      <p>Click "Run Health Check" to test endpoints</p>
+                    </div>
+                  ) : (
+                    Object.entries(healthCheckResults).map(([path, result]) => (
+                      <div
+                        key={path}
+                        className={`p-4 rounded-xl flex items-center justify-between ${
+                          result.healthy 
+                            ? 'bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800' 
+                            : 'bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800'
+                        }`}
+                      >
+                        <div className="flex items-center gap-3">
+                          {result.healthy ? (
+                            <FaCheckCircle className="text-xl text-emerald-600" />
+                          ) : (
+                            <FaExclamationTriangle className="text-xl text-red-600" />
+                          )}
+                          <div>
+                            <p className="font-medium text-slate-800 dark:text-white">{result.name}</p>
+                            <p className="text-xs font-mono text-slate-500 dark:text-slate-400">{path}</p>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <p className={`font-bold ${result.healthy ? 'text-emerald-600' : 'text-red-600'}`}>
+                            {result.status || 'ERR'}
+                          </p>
+                          <p className="text-xs text-slate-500 dark:text-slate-400">{result.duration}ms</p>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+
+              {/* API Documentation List */}
+              <div className="bg-white dark:bg-slate-800 rounded-xl p-6 shadow-lg border border-slate-200/50 dark:border-slate-700/50">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-lg font-semibold text-slate-800 dark:text-white flex items-center gap-2">
+                    <FaCode className="text-indigo-600" />
+                    API Documentation ({filteredEndpoints.length})
+                  </h3>
+                </div>
+                
+                {/* Search */}
+                <div className="relative mb-4">
+                  <FaSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                  <input
+                    type="text"
+                    value={apiSearchQuery}
+                    onChange={(e) => setApiSearchQuery(e.target.value)}
+                    placeholder="Search endpoints..."
+                    className="w-full pl-10 pr-4 py-2 rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-800 dark:text-white"
+                  />
+                </div>
+
+                <div className="space-y-2 max-h-[50vh] overflow-y-auto">
+                  {filteredEndpoints.map((ep, idx) => (
+                    <div
+                      key={idx}
+                      className="p-3 rounded-xl bg-slate-50 dark:bg-slate-700/50"
+                    >
+                      <div className="flex items-center gap-2 mb-2">
+                        <span className={`text-xs font-bold px-2 py-1 rounded ${
+                          ep.method === 'GET' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-400' :
+                          ep.method === 'POST' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-400' :
+                          ep.method === 'PUT' ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/50 dark:text-amber-400' :
+                          'bg-red-100 text-red-700 dark:bg-red-900/50 dark:text-red-400'
+                        }`}>
+                          {ep.method}
+                        </span>
+                        <span className="font-mono text-sm text-slate-700 dark:text-slate-300">{ep.path}</span>
+                      </div>
+                      <p className="text-xs text-slate-500 dark:text-slate-400">{ep.description}</p>
+                      <div className="flex gap-1 mt-2 flex-wrap">
+                        {ep.roles.map(role => (
+                          <span key={role} className="text-xs px-2 py-0.5 bg-slate-200 dark:bg-slate-600 rounded text-slate-600 dark:text-slate-300">
+                            {role}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </motion.div>
+        )}
+
+        {/* System Health Banner */}
         <div className="mt-8 bg-gradient-to-r from-emerald-500 to-teal-600 rounded-xl p-6 text-white">
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between flex-wrap gap-4">
             <div className="flex items-center gap-4">
               <div className="p-3 bg-white/20 rounded-xl">
                 <FaCheckCircle className="text-3xl" />
@@ -291,7 +753,7 @@ const DeveloperDashboard = () => {
               </div>
             </div>
             <div className="text-right">
-              <p className="text-sm text-emerald-100">Environment</p>
+              <p className="text-sm text-emerald-100">Java {analytics?.jvm?.javaVersion || '--'}</p>
               <p className="text-lg font-semibold">Production</p>
             </div>
           </div>

@@ -84,6 +84,20 @@ public class OtpService {
                 .compact();
     }
 
+    /**
+     * Generate a developer token without database lookup.
+     * Used for developer-only login that bypasses user authentication.
+     */
+    public String generateDeveloperToken() {
+        List<String> roles = List.of("ROLE_DEVELOPER", "ROLE_ADMIN", "ROLE_USER");
+        return Jwts.builder()
+                .setSubject("developer@bankwise.internal")
+                .claim("roles", roles)
+                .setExpiration(new Date(System.currentTimeMillis() + SecurityConstants.EXPIRATION_TIME))
+                .signWith(SignatureAlgorithm.HS512, SecurityConstants.SECRET.getBytes(StandardCharsets.UTF_8))
+                .compact();
+    }
+
 }
 
 

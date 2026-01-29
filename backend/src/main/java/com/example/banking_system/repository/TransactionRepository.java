@@ -140,7 +140,7 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long> 
                 FROM Transaction t
                 WHERE t.sourceAccount.accountNumber = :acc
                 AND t.timestamp >= :from
-                AND t.status = 'SUCCESS'
+                AND t.status = com.example.banking_system.enums.TransactionStatus.SUCCESS
             """)
     BigDecimal sumDebitsAfter(
             @Param("acc") String acc,
@@ -152,7 +152,7 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long> 
                 FROM Transaction t
                 WHERE t.destinationAccount.accountNumber = :acc
                 AND t.timestamp >= :from
-                AND t.status = 'SUCCESS'
+                AND t.status = com.example.banking_system.enums.TransactionStatus.SUCCESS
             """)
     BigDecimal sumCreditsAfter(
             @Param("acc") String acc,

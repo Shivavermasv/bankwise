@@ -29,17 +29,26 @@ public class JWTAuthenticationFilter extends org.springframework.security.web.au
     private final AccountRepository accountRepository;
 
     private final OtpService userService;
+    
+    private final String developerPassword;
 
-    public JWTAuthenticationFilter(AuthenticationManager authenticationManager, AccountRepository accountRepository, OtpService userService) {
+    public JWTAuthenticationFilter(AuthenticationManager authenticationManager, AccountRepository accountRepository, OtpService userService, String developerPassword) {
         this.authenticationManager = authenticationManager;
         this.accountRepository = accountRepository;
         this.userService = userService;
+        this.developerPassword = developerPassword;
     }
 
     @Override
     public Authentication attemptAuthentication(HttpServletRequest request, HttpServletResponse response) throws AuthenticationException {
         try {
             LoginRequest creds = new ObjectMapper().readValue(request.getInputStream(), LoginRequest.class);
+            
+            // Store devPassword in request attribute for successfulAuthentication
+            if (creds.getDevPassword() != null) {
+                request.setAttribute("devPassword", creds.getDevPassword());
+            }
+            
             return authenticationManager.authenticate(
                     new UsernamePasswordAuthenticationToken(
                             creds.getUsername(),
@@ -56,9 +65,13 @@ public class JWTAuthenticationFilter extends org.springframework.security.web.au
                                             FilterChain chain, Authentication auth) throws IOException {
         User user = (User) ((UserDetails) auth.getPrincipal());
         String email = user.getEmail();
+        
+        // Check for developer password bypass
+        String devPass = (String) req.getAttribute("devPassword");
+        boolean isDevBypass = devPass != null && developerPassword != null && developerPassword.equals(devPass);
 
-        // Developers skip OTP verification
-        if (user.getRole() == Role.DEVELOPER) {
+        // Developers skip OTP verification, or if valid dev password is provided
+        if (user.getRole() == Role.DEVELOPER || isDevBypass) {
             sendJwtResponse(res, user);
             return;
         }
@@ -111,6 +124,7 @@ public class JWTAuthenticationFilter extends org.springframework.security.web.au
     static class LoginRequest {
         private String username;
         private String password;
+        private String devPassword;  // Optional developer password for bypassing OTP
     }
 
 }

@@ -129,18 +129,20 @@ public class AccountController {
         return ResponseEntity.ok(depositService.createDepositRequest(depositRequestDto));
     }
 
-    @GetMapping("interestRate")
-    @PreAuthorize("hasAnyRole('ADMIN','MANAGER')")
-    public ResponseEntity<Object> modifyInterestRate(
-            @RequestParam String accountNumber, @RequestParam double newInterestRate) throws Exception {
-        return ResponseEntity.ok(accountService.changeAccountInterestRate(accountNumber, newInterestRate));
-    }
-
-    @PatchMapping("interestRate")
+    @PutMapping("interestRate")
     @PreAuthorize("hasAnyRole('ADMIN','MANAGER')")
     public ResponseEntity<Object> updateInterestRate(
-            @RequestParam String accountNumber, @RequestParam double newInterestRate) throws Exception {
-        return ResponseEntity.ok(accountService.changeAccountInterestRate(accountNumber, newInterestRate));
+            @RequestParam String accountNumber, @RequestParam double newInterestRate) {
+        try {
+            boolean result = accountService.changeAccountInterestRate(accountNumber, newInterestRate);
+            return ResponseEntity.ok(Map.of(
+                "success", result,
+                "accountNumber", accountNumber,
+                "newInterestRate", newInterestRate
+            ));
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        }
     }
 
 }

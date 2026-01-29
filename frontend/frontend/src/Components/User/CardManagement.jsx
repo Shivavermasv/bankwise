@@ -177,6 +177,7 @@ const CardManagement = ({ embedded = false }) => {
       {showIssueModal && (
         <IssueCardModal
           token={token}
+          user={user}
           onClose={() => setShowIssueModal(false)}
           onSuccess={() => {
             loadCards();
@@ -362,12 +363,14 @@ const VirtualCard = ({
 };
 
 // Issue Card Modal
-const IssueCardModal = ({ token, onClose, onSuccess }) => {
+const IssueCardModal = ({ token, user, onClose, onSuccess }) => {
   const [cardType, setCardType] = useState('DEBIT');
-  const [accountId, setAccountId] = useState('');
   const [creditLimit, setCreditLimit] = useState(50000);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+
+  // Get account ID from user object
+  const accountId = user?.id || user?.accountId;
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -375,10 +378,19 @@ const IssueCardModal = ({ token, onClose, onSuccess }) => {
     setError(null);
 
     try {
+      if (!accountId) {
+        throw new Error('Account ID not found. Please refresh the page.');
+      }
+      
+      const numericAccountId = Number(accountId);
+      if (isNaN(numericAccountId)) {
+        throw new Error('Invalid account ID');
+      }
+
       if (cardType === 'DEBIT') {
-        await cardApi.issueDebitCard(token, accountId);
+        await cardApi.issueDebitCard(token, numericAccountId);
       } else {
-        await cardApi.issueCreditCard(token, accountId, creditLimit);
+        await cardApi.issueCreditCard(token, numericAccountId, creditLimit);
       }
       onSuccess();
     } catch (err) {
@@ -436,16 +448,14 @@ const IssueCardModal = ({ token, onClose, onSuccess }) => {
 
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-              Account ID
+              Account
             </label>
-            <input
-              type="text"
-              value={accountId}
-              onChange={(e) => setAccountId(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500"
-              placeholder="Enter your account ID"
-              required
-            />
+            <div className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white">
+              {user?.accountNumber || 'Your Primary Account'}
+            </div>
+            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+              Card will be linked to your primary account
+            </p>
           </div>
 
           {cardType === 'CREDIT' && (
@@ -484,7 +494,7 @@ const IssueCardModal = ({ token, onClose, onSuccess }) => {
             </button>
             <button
               type="submit"
-              disabled={loading}
+              disabled={loading || !accountId}
               className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
             >
               {loading ? 'Requesting...' : 'Request Card'}

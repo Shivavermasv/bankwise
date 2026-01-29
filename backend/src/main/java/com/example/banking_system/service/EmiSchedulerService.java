@@ -550,6 +550,17 @@ public class EmiSchedulerService {
         LoanRequest loan = loanRepository.findById(loanId)
             .orElseThrow(() -> new RuntimeException("Loan not found"));
         
+        // Validate loan has required data for schedule generation
+        if (loan.getEmiAmount() == null) {
+            throw new RuntimeException("EMI amount not calculated for this loan. Loan may not be approved yet.");
+        }
+        if (loan.getAmount() == null) {
+            throw new RuntimeException("Loan amount is not set");
+        }
+        if (loan.getTotalEmis() == null || loan.getTotalEmis() <= 0) {
+            throw new RuntimeException("Invalid loan tenure");
+        }
+        
         return generateEmiSchedule(loan);
     }
 

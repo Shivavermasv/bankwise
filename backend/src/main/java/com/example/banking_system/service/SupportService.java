@@ -60,7 +60,11 @@ public class SupportService {
         if (email == null) {
             throw new ResourceNotFoundException("User not found");
         }
-        return ticketRepository.findByUserEmailOrderByCreatedAtDesc(email)
+        // Exclude RESOLVED and CLOSED tickets from user view (handled by developer)
+        return ticketRepository.findByUserEmailAndStatusNotInOrderByCreatedAtDesc(
+                email, 
+                List.of("RESOLVED", "CLOSED")
+        )
                 .stream()
                 .map(this::toResponse)
                 .toList();
