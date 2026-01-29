@@ -13,6 +13,7 @@
     <!-- Error Log File - Rolling with size limit -->
     <appender name="ERROR_FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
         <file>${LOG_PATH}/app.log</file>
+        <createParentDirectories>true</createParentDirectories>
         <append>true</append>
         <prudent>false</prudent>
         <filter class="ch.qos.logback.classic.filter.ThresholdFilter">
