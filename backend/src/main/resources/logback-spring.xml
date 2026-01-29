@@ -2,7 +2,7 @@
 <configuration>
 
     <!-- ABSOLUTE path to Railway volume -->
-    <property name="LOG_PATH" value="/app/logs/bankwise"/>
+    <property name="LOGS_PATH" value="/app/logs/bankwise"/>
 
     <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
         <encoder>
@@ -13,7 +13,7 @@
     <appender name="ERROR_FILE"
               class="ch.qos.logback.core.rolling.RollingFileAppender">
 
-        <file>${LOG_PATH}/app.log</file>
+        <file>${LOGS_PATH}/app.log</file>
         <createParentDirectories>true</createParentDirectories>
         <append>true</append>
 
@@ -22,7 +22,7 @@
         </filter>
 
         <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
-            <fileNamePattern>${LOG_PATH}/app.%d{yyyy-MM-dd}.log</fileNamePattern>
+            <fileNamePattern>${LOGS_PATH}/app.%d{yyyy-MM-dd}.log</fileNamePattern>
             <maxHistory>7</maxHistory>
             <totalSizeCap>50MB</totalSizeCap>
         </rollingPolicy>
