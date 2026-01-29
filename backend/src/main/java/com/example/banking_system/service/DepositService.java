@@ -45,10 +45,13 @@ public class DepositService {
     private final AuditService auditService;
     private final ApplicationEventPublisher eventPublisher;
     private final CachedDataService cachedDataService;
+    private final IdempotencyService idempotencyService;
+    private final CacheEvictionService cacheEvictionService;
 
     public String createDepositRequest(DepositRequestDto depositRequestDto) {
         log.info("Creating deposit request accountNumber={} amount={}", depositRequestDto.getAccountNumber(), depositRequestDto.getAmount());
-        Account account = cachedDataService.getAccountByNumber(depositRequestDto.getAccountNumber());
+        // Use non-cached version to ensure fresh user data for authorization check
+        Account account = cachedDataService.getAccountByNumberForAuth(depositRequestDto.getAccountNumber());
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         String currentEmail = auth != null ? auth.getName() : null;
         if (account.getUser() == null || !account.getUser().getEmail().equalsIgnoreCase(currentEmail)) {
@@ -70,6 +73,9 @@ public class DepositService {
         auditService.record("DEPOSIT_REQUEST", "DEPOSIT_REQUEST", String.valueOf(depositRequest.getId()), "PENDING",
             "amount=" + depositRequestDto.getAmount());
         
+        // Evict cache after deposit request
+        cacheEvictionService.evictByOperationType("DEPOSIT", currentEmail, depositRequestDto.getAccountNumber());
+        
         // Publish event - notifications will be sent asynchronously AFTER transaction commits
         eventPublisher.publishEvent(new DepositProcessedEvent(
             this,
@@ -81,6 +87,38 @@ public class DepositService {
         ));
         
         return "DepositRequest created";
+    }
+
+    /**
+     * Create deposit request with idempotency support
+     */
+    @Transactional
+    public String createDepositRequestWithIdempotency(DepositRequestDto depositRequestDto, String idempotencyKey) {
+        // Return cached result if already processed
+        String cached = idempotencyService.getResult(idempotencyKey);
+        if (cached != null) {
+            log.info("Returning cached result for deposit idempotency key: {}", idempotencyKey);
+            return cached;
+        }
+
+        // Acquire lock to prevent concurrent processing
+        if (!idempotencyService.acquireIdempotencyLock(idempotencyKey)) {
+            throw new IllegalStateException("Deposit request is already being processed");
+        }
+
+        try {
+            // Do actual processing
+            String result = createDepositRequest(depositRequestDto);
+            
+            // Store for future retries
+            idempotencyService.storeResult(idempotencyKey, result);
+            
+            return result;
+        } catch (Exception e) {
+            // Release lock on error
+            idempotencyService.releaseLock(idempotencyKey);
+            throw e;
+        }
     }
 
     @Transactional
@@ -123,6 +161,11 @@ public class DepositService {
                 auditService.record("DEPOSIT_APPROVE", "DEPOSIT_REQUEST", String.valueOf(request.getId()), "SUCCESS",
                     "amount=" + request.getAmount());
             
+            // Evict cache after deposit approval
+            cacheEvictionService.evictByOperationType("DEPOSIT",
+                    account.getUser().getEmail(),
+                    account.getAccountNumber());
+            
             // Publish event - notifications will be sent asynchronously AFTER transaction commits
             eventPublisher.publishEvent(new DepositProcessedEvent(
                 this,
@@ -157,6 +200,11 @@ public class DepositService {
         auditService.record("DEPOSIT_REJECT", "DEPOSIT_REQUEST", String.valueOf(request.getId()), "REJECTED",
             "amount=" + request.getAmount());
         
+        // Evict cache after deposit rejection
+        cacheEvictionService.evictByOperationType("DEPOSIT",
+                request.getAccount().getUser().getEmail(),
+                request.getAccount().getAccountNumber());
+        
         // Publish event - notifications will be sent asynchronously AFTER transaction commits
         eventPublisher.publishEvent(new DepositProcessedEvent(
             this,
@@ -171,10 +219,11 @@ public class DepositService {
     }
 
 
+    @org.springframework.transaction.annotation.Transactional(readOnly = true)
     public List<DepositResponseDto> getDepositRequestsByStatus(String status) {
         List<DepositRequest> depositRequests;
         if ("ALL".equalsIgnoreCase(status)) {
-            depositRequests = depositRepository.findAll();
+            depositRequests = depositRepository.findAllWithAccount();
         } else {
             DepositStatus statusEnum;
             try {

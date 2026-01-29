@@ -24,6 +24,9 @@ public class OtpService {
     private final EmailService emailService;
     private final CachedDataService cachedDataService;
 
+    @org.springframework.beans.factory.annotation.Value("${bankwise.dev.skip-otp:false}")
+    private boolean skipOtp;
+
 
     private final Map<String, String> otpMap = new ConcurrentHashMap<>();
     private final Set<String> verifiedUsers = Collections.synchronizedSet(new HashSet<>());
@@ -41,11 +44,22 @@ public class OtpService {
     }
 
     public void sendOtp(String email, String otp) {
+        if (skipOtp) {
+            log.info("Dev mode: Skipping OTP email for email={}", email);
+            return;
+        }
         emailService.sendEmail(email, "OTP for Authentication", "Your OTP is: " + otp);
-        log.info("OTP generated for email={}", email+otp);
+        log.info("OTP sent to email={}", email);
     }
 
     public boolean verifyOtp(String email, String userOtp) {
+        // Dev mode: skip OTP verification
+        if (skipOtp) {
+            log.info("Dev mode: OTP verification skipped for email={}", email);
+            otpMap.remove(email);
+            verifiedUsers.add(email);
+            return true;
+        }
         String stored = otpMap.get(email);
         if (stored != null && stored.equals(userOtp)) {
             otpMap.remove(email);

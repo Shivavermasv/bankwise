@@ -14,7 +14,7 @@ import { useTheme } from '../../context/ThemeContext';
  * Displays spending patterns, repayment history, debt analysis with charts
  */
 const UserAnalyticsDashboard = ({ embedded = false }) => {
-  const { token } = useAuth();
+  const { token, isLoading: authLoading } = useAuth();
   const { theme } = useTheme();
   const [dashboard, setDashboard] = useState(null);
   const [spending, setSpending] = useState(null);
@@ -26,6 +26,10 @@ const UserAnalyticsDashboard = ({ embedded = false }) => {
   const [selectedMonths, setSelectedMonths] = useState(6);
 
   const loadAnalytics = useCallback(async () => {
+    if (!token) {
+      setLoading(false);
+      return;
+    }
     try {
       setLoading(true);
       const [dashboardData, spendingData, loansData, debtsData] = await Promise.all([
@@ -46,9 +50,10 @@ const UserAnalyticsDashboard = ({ embedded = false }) => {
   }, [token, selectedMonths]);
 
   useEffect(() => {
-    loadAnalytics();
-    console.log({ dashboard, spending, loans, debts });
-  }, [dashboard, spending, loans, debts]);
+    if (!authLoading && token) {
+      loadAnalytics();
+    }
+  }, [loadAnalytics, authLoading, token]);
 
   if (loading && !dashboard) {
     return (

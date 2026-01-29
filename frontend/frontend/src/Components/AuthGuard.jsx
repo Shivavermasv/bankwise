@@ -1,14 +1,15 @@
 import React from 'react';
 import { Navigate } from 'react-router-dom';
-import { getHomeRouteForRole, hasRequiredRole, isSessionValid } from '../utils/auth';
+import { getHomeRouteForRole, hasRequiredRole, isSessionValid, getStoredUser } from '../utils/auth';
 
 // Authentication Guard - checks if user has valid token and session
 const AuthGuard = ({ children, allowedRoles = [] }) => {
-  const user = JSON.parse(sessionStorage.getItem('user') || '{}');
+  const user = getStoredUser();
   
   // If not authenticated or token invalid, redirect to login
-  if (!isSessionValid(user)) {
+  if (!user || !isSessionValid(user)) {
     sessionStorage.clear();
+    localStorage.clear(); // Clear any legacy data
     return <Navigate to="/login" replace />;
   }
   

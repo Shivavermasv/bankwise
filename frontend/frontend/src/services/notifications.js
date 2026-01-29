@@ -1,4 +1,4 @@
-import { apiFetch } from '../utils/apiClient';
+import { apiFetch, invalidateCache } from '../utils/apiClient';
 
 export function fetchNotifications({ token, email }) {
   return apiFetch('/api/notification/notifications', {
@@ -7,9 +7,11 @@ export function fetchNotifications({ token, email }) {
   });
 }
 
-export function markNotificationSeen({ token, id }) {
-  return apiFetch(`/api/notification/notifications/${id}/seen`, {
+export async function markNotificationSeen({ token, id }) {
+  const result = await apiFetch(`/api/notification/notifications/${id}/seen`, {
     method: 'PATCH',
     token
   });
+  invalidateCache('/api/notification');
+  return result;
 }

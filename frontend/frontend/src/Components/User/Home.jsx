@@ -17,6 +17,7 @@ import { fetchNotifications as fetchNotificationsApi, markNotificationSeen, getU
 import { fetchRecentTransactions } from "../../services/transactions";
 import { useTheme } from '../../context/ThemeContext.jsx';
 import { useNotifications } from "../../hooks/useNotifications";
+import { invalidateCache } from "../../utils/apiClient";
 import { FiRefreshCw } from 'react-icons/fi';
 
 // Simple reusable skeleton block
@@ -169,6 +170,23 @@ const Home = () => {
     onNotification: (notif) => {
       setNotifications(prev => [notif, ...prev]);
       setUnseenCount(prev => prev + 1);
+      
+      // Auto-refresh user data when deposit/loan/transfer notifications arrive
+      if (notif.message && (
+        notif.message.includes('approved') || 
+        notif.message.includes('credited') ||
+        notif.message.includes('deposit') ||
+        notif.message.includes('transfer') ||
+        notif.message.includes('loan')
+      )) {
+        // Invalidate caches and refresh user data
+        invalidateCache('/api/account');
+        invalidateCache('/api/transaction');
+        invalidateCache('/api/analytics');
+        invalidateCache('/api/user');
+        fetchUserDetails(false);
+        loadRecentTransactions(false);
+      }
     }
   });
 
@@ -199,7 +217,7 @@ const Home = () => {
         <Navbar />
         <div style={{ height: 64 }} />
         <AccountPendingModal onVerify={() => setShowVerify(true)} />
-        {showVerify && <AccountVerificationModal user={user} onClose={() => setShowVerify(false)} onSuccess={() => window.location.reload()} />}
+        {showVerify && <AccountVerificationModal user={user} onClose={() => setShowVerify(false)} onSuccess={() => setTriggerUserDetailsRefetch(prev => !prev)} />}
       </>
     );
   }
@@ -251,7 +269,7 @@ const Home = () => {
 
           {/* Loan Repayment Card (shows if user has active loan) */}
           {user.verificationStatus === 'VERIFIED' && (
-            <LoanRepaymentCard user={user} />
+            <LoanRepaymentCard user={user} onPaymentSuccess={() => fetchUserDetails(false)} />
           )}
 
           {/* KYC submission (show if not VERIFIED) */}

@@ -31,14 +31,22 @@ public class JWTAuthorizationFilter extends BasicAuthenticationFilter {
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain chain) throws IOException, ServletException {
         String header = request.getHeader(SecurityConstants.HEADER_STRING);
+        log.debug("Processing request: {} {}", request.getMethod(), request.getRequestURI());
+        log.debug("Authorization header present: {}", header != null);
+        
         if (header == null || !header.startsWith(SecurityConstants.TOKEN_PREFIX)) {
+            log.debug("No valid Authorization header found, continuing filter chain");
             chain.doFilter(request, response);
             return;
         }
 
+        log.debug("Authorization header starts with Bearer, attempting to parse JWT");
         UsernamePasswordAuthenticationToken authentication = getAuthentication(request);
         if (authentication != null) {
+            log.debug("JWT validated successfully for user: {}", authentication.getName());
             SecurityContextHolder.getContext().setAuthentication(authentication);
+        } else {
+            log.warn("JWT validation failed, authentication is null");
         }
         chain.doFilter(request, response);
     }
@@ -47,15 +55,20 @@ public class JWTAuthorizationFilter extends BasicAuthenticationFilter {
         String token = request.getHeader(SecurityConstants.HEADER_STRING);
         if (token != null) {
             try {
+                String jwtToken = token.replace(SecurityConstants.TOKEN_PREFIX, "").trim();
+                log.debug("Parsing JWT token (length={})", jwtToken.length());
+                
                 Claims claims = Jwts.parser()
                         .setSigningKey(SecurityConstants.SECRET.getBytes(StandardCharsets.UTF_8))
-                        .parseClaimsJws(token.replace(SecurityConstants.TOKEN_PREFIX, ""))
+                        .parseClaimsJws(jwtToken)
                         .getBody();
 
                 String user = claims.getSubject();
+                log.debug("JWT subject (user): {}", user);
 
                 @SuppressWarnings("unchecked")
                 List<String> roles = claims.get("roles", List.class);
+                log.debug("JWT roles: {}", roles);
 
                 List<GrantedAuthority> authorities = new ArrayList<>();
                 if (roles != null) {
@@ -68,7 +81,7 @@ public class JWTAuthorizationFilter extends BasicAuthenticationFilter {
                     return new UsernamePasswordAuthenticationToken(user, null, authorities);
                 }
             } catch (Exception e) {
-                log.debug("JWT parsing failed: {}", e.getMessage());
+                log.warn("JWT parsing failed: {} - {}", e.getClass().getSimpleName(), e.getMessage());
             }
         }
         return null;

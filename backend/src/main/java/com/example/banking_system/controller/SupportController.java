@@ -18,13 +18,13 @@ public class SupportController {
 
     private final SupportService supportService;
 
-    @PreAuthorize("hasAnyRole('USER','CUSTOMER')")
+    @PreAuthorize("hasAnyRole('USER','CUSTOMER','ADMIN','MANAGER')")
     @PostMapping("/tickets")
     public ResponseEntity<SupportTicketResponseDto> createTicket(@Valid @RequestBody SupportTicketRequestDto request) throws com.example.banking_system.exception.ResourceNotFoundException {
         return ResponseEntity.ok(supportService.createTicket(request));
     }
 
-    @PreAuthorize("hasAnyRole('USER','CUSTOMER')")
+    @PreAuthorize("hasAnyRole('USER','CUSTOMER','ADMIN','MANAGER')")
     @GetMapping("/tickets/my")
     public ResponseEntity<List<SupportTicketResponseDto>> myTickets() throws com.example.banking_system.exception.ResourceNotFoundException {
         return ResponseEntity.ok(supportService.listForCurrentUser());

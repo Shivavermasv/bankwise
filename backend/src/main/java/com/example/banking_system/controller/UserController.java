@@ -14,6 +14,8 @@ import com.example.banking_system.repository.UserRepository;
 import com.example.banking_system.service.AuditService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
@@ -33,6 +35,8 @@ import static org.apache.tomcat.websocket.Constants.UNAUTHORIZED;
 @RequiredArgsConstructor
 public class UserController {
 
+    private static final Logger log = LoggerFactory.getLogger(UserController.class);
+    
     private final UserService userService;
     private final OtpService otpService;
     private final AccountRepository accountRepository;
@@ -74,12 +78,19 @@ public class UserController {
             resp.put("profilePhotoContentType", user.getProfilePhotoContentType());
         }
 
-        if (user.getRole() == Role.USER || user.getRole() == Role.CUSTOMER) {
-            Account acc = accountRepository.findAccountByUser(user).orElseThrow();
-            resp.put("accountNumber", acc.getAccountNumber());
-            resp.put("verificationStatus", acc.getVerificationStatus());
-            resp.put("balance", acc.getBalance());
+        // Always try to get account for any user type that has one
+        try {
+            Account acc = accountRepository.findAccountByUser(user).orElse(null);
+            if (acc != null) {
+                resp.put("accountNumber", acc.getAccountNumber());
+                resp.put("verificationStatus", acc.getVerificationStatus());
+                resp.put("balance", acc.getBalance());
+            }
+        } catch (Exception e) {
+            // If account lookup fails, continue without account details
+            log.warn("Could not retrieve account for user: {}", user.getEmail(), e);
         }
+        
         return ResponseEntity.ok(resp);
     }
 

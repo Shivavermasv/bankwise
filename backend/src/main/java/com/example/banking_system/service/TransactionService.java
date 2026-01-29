@@ -37,7 +37,9 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
@@ -77,6 +79,12 @@ public class TransactionService {
     @Autowired
     private CachedDataService cachedDataService;
 
+    @Autowired
+    private IdempotencyService idempotencyService;
+
+    @Autowired
+    private CacheEvictionService cacheEvictionService;
+
     @Transactional
     public String processTransaction(TransferRequestDto transferRequestDto) {
         log.info("Processing transfer from={} to={} amount={}", transferRequestDto.getFromAccount(), transferRequestDto.getToAccount(), transferRequestDto.getAmount());
@@ -94,8 +102,22 @@ public class TransactionService {
             transferRequestDto.getFromAccount().equals(transferRequestDto.getToAccount())) {
             throw new BusinessRuleViolationException("Cannot transfer to your own account");
         }
-        Account fromAccount = cachedDataService.getAccountByNumber(transferRequestDto.getFromAccount());
-        Account toAccount = cachedDataService.getAccountByNumber(transferRequestDto.getToAccount());
+        
+        // Use pessimistic locking to prevent race conditions during concurrent transfers
+        // Order accounts by number to prevent deadlocks when two users transfer to each other
+        String firstAccount = transferRequestDto.getFromAccount().compareTo(transferRequestDto.getToAccount()) < 0 
+            ? transferRequestDto.getFromAccount() : transferRequestDto.getToAccount();
+        String secondAccount = transferRequestDto.getFromAccount().compareTo(transferRequestDto.getToAccount()) < 0 
+            ? transferRequestDto.getToAccount() : transferRequestDto.getFromAccount();
+        
+        // Lock accounts in consistent order to prevent deadlocks
+        Account firstLocked = accountRepository.findByAccountNumberForUpdate(firstAccount)
+            .orElseThrow(() -> new BusinessRuleViolationException("Account not found: " + firstAccount));
+        Account secondLocked = accountRepository.findByAccountNumberForUpdate(secondAccount)
+            .orElseThrow(() -> new BusinessRuleViolationException("Account not found: " + secondAccount));
+        
+        Account fromAccount = transferRequestDto.getFromAccount().equals(firstAccount) ? firstLocked : secondLocked;
+        Account toAccount = transferRequestDto.getToAccount().equals(firstAccount) ? firstLocked : secondLocked;
 
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         String currentEmail = auth != null ? auth.getName() : null;
@@ -114,7 +136,7 @@ public class TransactionService {
         }
         if (!toAccount.getVerificationStatus().equals(VerificationStatus.VERIFIED)) {
             auditService.record("TRANSFER", "ACCOUNT", transferRequestDto.getToAccount(), "DENIED", "Destination account not verified");
-            return "Destination Account has not been verified";
+            throw new AccountStatusException("Destination account has not been verified");
         }
 
         LocalDateTime startOfDay = LocalDate.now().atStartOfDay();
@@ -128,9 +150,12 @@ public class TransactionService {
         if (fromAccount.getBalance().compareTo(transferRequestDto.getAmount()) >= 0) {
             fromAccount.setBalance(fromAccount.getBalance().subtract(transferRequestDto.getAmount()));
             toAccount.setBalance(toAccount.getBalance().add(transferRequestDto.getAmount()));
-            accountRepository.save(fromAccount);
-            accountRepository.save(toAccount);
+            accountRepository.saveAndFlush(fromAccount);
+            accountRepository.saveAndFlush(toAccount);
             transactionStatus = TransactionStatus.SUCCESS;
+            log.info("Account balances updated: from={} balance={}, to={} balance={}", 
+                fromAccount.getAccountNumber(), fromAccount.getBalance(),
+                toAccount.getAccountNumber(), toAccount.getBalance());
             // Publish event - notifications will be sent asynchronously AFTER transaction commits
             eventPublisher.publishEvent(new TransferCompletedEvent(
                 this,
@@ -152,10 +177,17 @@ public class TransactionService {
                 .type(TransactionType.TRANSFER)
                 .timestamp(LocalDateTime.now())
                 .build();
-        transactionRepository.save(transaction);
+        transaction = transactionRepository.saveAndFlush(transaction);
+        log.info("Transaction saved with id={}", transaction.getId());
         if (transactionStatus == TransactionStatus.SUCCESS) {
             auditService.record("TRANSFER", "TRANSACTION", String.valueOf(transaction.getId()), "SUCCESS",
                     "from=" + fromAccount.getAccountNumber() + " to=" + toAccount.getAccountNumber() + " amount=" + transferRequestDto.getAmount());
+            
+            // Evict related caches after successful transfer
+            cacheEvictionService.evictByOperationType("TRANSFER", 
+                    fromAccount.getUser().getEmail(), 
+                    fromAccount.getAccountNumber(), 
+                    toAccount.getAccountNumber());
         } else {
             auditService.record("TRANSFER", "TRANSACTION", String.valueOf(transaction.getId()), "FAILED",
                     "Insufficient balance or failed validation");
@@ -163,6 +195,73 @@ public class TransactionService {
         }
         log.info("Transfer completed status={} from={} to={}", transactionStatus, fromAccount.getAccountNumber(), toAccount.getAccountNumber());
         return transactionStatus.toString();
+    }
+
+    /**
+     * Process transfer with idempotency support to prevent duplicate transfers.
+     * @param transferRequestDto The transfer request
+     * @param idempotencyKey Unique key for this operation (optional)
+     * @return Transfer result or cached result if duplicate
+     */
+    @Transactional
+    public String processTransactionWithIdempotency(TransferRequestDto transferRequestDto, String idempotencyKey) {
+        // If no idempotency key provided, generate one
+        if (idempotencyKey == null || idempotencyKey.isEmpty()) {
+            return processTransaction(transferRequestDto);
+        }
+
+        // Check if this operation was already completed
+        String cachedResult = idempotencyService.getResult(idempotencyKey);
+        if (cachedResult != null) {
+            log.info("Returning cached result for idempotency key: {}", idempotencyKey);
+            return cachedResult;
+        }
+
+        // Try to acquire lock for this operation
+        if (!idempotencyService.acquireIdempotencyLock(idempotencyKey)) {
+            // Another thread is processing this, wait a bit and check again
+            try {
+                Thread.sleep(1000);
+                String result = idempotencyService.getResult(idempotencyKey);
+                if (result != null) {
+                    return result;
+                }
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+            throw new BusinessRuleViolationException("Operation is already being processed. Please wait.");
+        }
+
+        try {
+            // Process the transaction
+            String result = processTransaction(transferRequestDto);
+            
+            // Store the result for future duplicate requests
+            idempotencyService.storeResult(idempotencyKey, result);
+            
+            return result;
+        } catch (Exception e) {
+            // Release lock on error without storing result
+            idempotencyService.releaseLock(idempotencyKey);
+            throw e;
+        }
+    }
+
+    /**
+     * Process transfer with idempotency and return status + new balance.
+     */
+    @Transactional
+    public Map<String, Object> processTransactionWithIdempotencyAndBalance(TransferRequestDto transferRequestDto, String idempotencyKey) {
+        String status = processTransactionWithIdempotency(transferRequestDto, idempotencyKey);
+        
+        // Get the updated balance for the source account
+        Account fromAccount = accountRepository.findByAccountNumber(transferRequestDto.getFromAccount())
+                .orElse(null);
+        
+        Map<String, Object> result = new HashMap<>();
+        result.put("status", status);
+        result.put("newBalance", fromAccount != null ? fromAccount.getBalance() : null);
+        return result;
     }
 
     public List<TransactionResponseDto> getTransaction(String accountNumber, int page, int pageSize,
@@ -180,8 +279,38 @@ public class TransactionService {
                 accountNumber, start, end, pageable
         );
         return transactionPage.stream()
-                .map(this::mapToDto)
+                .map(txn -> mapToDto(txn, accountNumber))
                 .collect(Collectors.toList());
+    }
+
+    /**
+     * Map transaction to DTO with amount sign adjusted based on the queried account.
+     * If the queried account is the source (sender), amount is negative (debit).
+     * If the queried account is the destination (receiver), amount is positive (credit).
+     */
+    public TransactionResponseDto mapToDto(Transaction transaction, String queriedAccountNumber) {
+        TransactionResponseDto dto = mapToDto(transaction);
+        
+        // Adjust amount sign based on whether this is a debit or credit for the queried account
+        if (transaction.getType() == TransactionType.TRANSFER) {
+            String sourceAccNum = transaction.getSourceAccount() != null 
+                ? transaction.getSourceAccount().getAccountNumber() : null;
+            
+            // If the queried account is the source (sender), make amount negative
+            if (queriedAccountNumber != null && queriedAccountNumber.equals(sourceAccNum)) {
+                dto.setAmount(dto.getAmount().negate());
+            }
+        } else if (transaction.getType() == TransactionType.WITHDRAW 
+                || transaction.getType() == TransactionType.LOAN_PAYMENT 
+                || transaction.getType() == TransactionType.LOAN_PENALTY) {
+            // These are always debits (money going out)
+            if (dto.getAmount().compareTo(BigDecimal.ZERO) > 0) {
+                dto.setAmount(dto.getAmount().negate());
+            }
+        }
+        // DEPOSIT and LOAN_DISBURSEMENT are credits, keep positive
+        
+        return dto;
     }
 
     public TransactionResponseDto mapToDto(Transaction transaction) {
@@ -261,7 +390,10 @@ public class TransactionService {
         }
     }
 
-    @Async
+    /**
+     * Generate PDF report for transactions.
+     * This is called within an ExecutorService thread pool, so no @Async needed.
+     */
     private byte[] generateTransactionPdf(List<TransactionResponseDto> transactionResponseDtos,
                                           Account account, LocalDate startDate, LocalDate endDate) {
         ByteArrayOutputStream outputStream = new ByteArrayOutputStream();

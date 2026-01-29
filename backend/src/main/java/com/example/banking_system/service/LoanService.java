@@ -30,6 +30,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 
@@ -47,6 +48,8 @@ public class LoanService {
     private final AuditService auditService;
     private final ApplicationEventPublisher eventPublisher;
     private final CachedDataService cachedDataService;
+    private final CacheEvictionService cacheEvictionService;
+    private final IdempotencyService idempotencyService;
 
     @Value("${bankwise.loan.min-amount:1000}")
     private BigDecimal minLoanAmount;
@@ -56,7 +59,8 @@ public class LoanService {
 
     public LoanResponseDto applyForLoan(LoanRequestDto dto) throws ResourceNotFoundException {
         log.info("Applying for loan accountNumber={} amount={} tenure={}", dto.getAccountNumber(), dto.getAmount(), dto.getTenureInMonths());
-        Account account = cachedDataService.getAccountByNumber(dto.getAccountNumber());
+        // Use non-cached version for authorization check
+        Account account = cachedDataService.getAccountByNumberForAuth(dto.getAccountNumber());
 
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         String currentEmail = auth != null ? auth.getName() : null;
@@ -107,6 +111,56 @@ public class LoanService {
         return mapToDto(loan);
     }
 
+    @Transactional
+    public LoanResponseDto applyForLoanWithIdempotency(LoanRequestDto dto, String idempotencyKey) 
+            throws ResourceNotFoundException {
+        log.info("Applying for loan with idempotency key: {}", idempotencyKey);
+        
+        // Check if this loan application was already processed
+        String cachedResult = idempotencyService.getResult(idempotencyKey);
+        if (cachedResult != null) {
+            log.info("Idempotent loan application detected, returning cached result");
+            try {
+                return new com.fasterxml.jackson.databind.ObjectMapper().readValue(cachedResult, LoanResponseDto.class);
+            } catch (Exception e) {
+                log.warn("Failed to deserialize cached loan result", e);
+            }
+        }
+        
+        // Acquire lock to ensure only one thread processes this loan application
+        boolean locked = idempotencyService.acquireIdempotencyLock(idempotencyKey);
+        if (!locked) {
+            log.warn("Could not acquire lock for loan application: {}, skipping", idempotencyKey);
+            throw new BusinessRuleViolationException("Loan application already in progress");
+        }
+        
+        boolean resultStored = false;
+        try {
+            // Process the loan application
+            LoanResponseDto result = applyForLoan(dto);
+            
+            // Cache the result for 24 hours to ensure idempotency
+            // storeResult() also releases the lock
+            try {
+                String resultJson = new com.fasterxml.jackson.databind.ObjectMapper().writeValueAsString(result);
+                idempotencyService.storeResult(idempotencyKey, resultJson);
+                resultStored = true;
+            } catch (Exception e) {
+                log.warn("Failed to serialize loan result for caching", e);
+            }
+            
+            return result;
+        } catch (Exception e) {
+            log.error("Error applying for loan with idempotency key {}: {}", idempotencyKey, e.getMessage());
+            throw e;
+        } finally {
+            // Only release lock if we didn't store the result (storeResult handles its own lock release)
+            if (!resultStored) {
+                idempotencyService.releaseLock(idempotencyKey);
+            }
+        }
+    }
+
     private LoanResponseDto mapToDto(LoanRequest loan) {
         // Handle null values from database
         double interestRate = loan.getInterestRate() != null ? loan.getInterestRate() : 0.0;
@@ -152,10 +206,17 @@ public class LoanService {
                 .build();
     }
 
+    @Transactional
     public String updateLoanStatus(Long loanId, LoanStatus status, String adminRemark) throws ResourceNotFoundException {
         log.info("Updating loan status loanId={} status={}", loanId, status);
-        LoanRequest loan = loanRepo.findById(loanId)
+        LoanRequest loan = loanRepo.findByIdWithAccountAndUser(loanId)
                 .orElseThrow(() -> new ResourceNotFoundException("Loan request not found"));
+
+        // Store account and user email before any operations to avoid lazy loading issues
+        Account account = loan.getBankAccount();
+        String accountNumber = account.getAccountNumber();
+        String userEmail = account.getUser().getEmail();
+        Long accountId = account.getId();
 
         LoanStatus currentStatus = loan.getStatus();
         if (currentStatus == status) {
@@ -168,33 +229,48 @@ public class LoanService {
             loan.setApprovalDate(LocalDate.now());
             loan.setMaturityDate(LocalDate.now().plusMonths(loan.getTenureInMonths()));
 
-            Account account = loan.getBankAccount();
-            if (account != null) {
-                account.setBalance(account.getBalance().add(loan.getAmount()));
-                accountRepo.save(account);
+            // 🔑 CRITICAL FIX: Calculate EMI amount when loan is approved
+            double interestRate = loan.getInterestRate() != null ? loan.getInterestRate() : 0.0;
+            int tenureInMonths = loan.getTenureInMonths() != null ? loan.getTenureInMonths() : 12;
+            BigDecimal emiAmount = calculateMonthlyEmi(loan.getAmount(), interestRate, tenureInMonths);
+            loan.setEmiAmount(emiAmount);
+            loan.setRemainingPrincipal(loan.getAmount());
+            loan.setEmisPaid(0); // Initialize EMI counter
+            log.info("EMI calculated for loan {}: ₹{} for {} months at {}% interest", 
+                    loanId, emiAmount, tenureInMonths, interestRate);
 
-                Transaction disbursement = Transaction.builder()
-                        .destinationAccount(account)
-                        .amount(loan.getAmount())
-                        .type(TransactionType.LOAN_DISBURSEMENT)
-                        .timestamp(LocalDate.now().atStartOfDay())
-                        .status(TransactionStatus.SUCCESS)
-                        .build();
-                transactionRepository.save(disbursement);
-                auditService.record("LOAN_DISBURSE", "ACCOUNT", account.getAccountNumber(), "SUCCESS",
-                        "loanId=" + loanId + " amount=" + loan.getAmount());
-            }
+            // Re-fetch account to ensure it's fully initialized and attached to session
+            Account freshAccount = accountRepo.findById(accountId)
+                    .orElseThrow(() -> new ResourceNotFoundException("Account not found"));
+            freshAccount.setBalance(freshAccount.getBalance().add(loan.getAmount()));
+            accountRepo.save(freshAccount);
+            log.info("Account balance updated for account {} after loan approval", accountNumber);
+
+            Transaction disbursement = Transaction.builder()
+                    .destinationAccount(freshAccount)
+                    .amount(loan.getAmount())
+                    .type(TransactionType.LOAN_DISBURSEMENT)
+                    .timestamp(LocalDate.now().atStartOfDay())
+                    .status(TransactionStatus.SUCCESS)
+                    .build();
+            transactionRepository.save(disbursement);
+            
+            // Evict cache after loan approval
+            cacheEvictionService.evictByOperationType("LOAN_APPROVAL", userEmail, accountNumber);
+            
+            auditService.record("LOAN_DISBURSE", "ACCOUNT", accountNumber, "SUCCESS",
+                    "loanId=" + loanId + " amount=" + loan.getAmount() + " emiAmount=" + emiAmount);
         }
 
-        String userEmail = loan.getBankAccount().getUser().getEmail();
         loanRepo.save(loan);
         auditService.record("LOAN_STATUS_UPDATE", "LOAN", String.valueOf(loanId), status.name(), adminRemark);
+        log.info("Loan {} status updated to {}", loanId, status);
 
         // Publish event - notifications will be sent asynchronously AFTER transaction commits
         eventPublisher.publishEvent(new LoanStatusChangedEvent(
                 this,
                 loanId,
-                loan.getBankAccount().getAccountNumber(),
+                accountNumber,
                 status.name(),
                 adminRemark,
                 userEmail
@@ -226,19 +302,25 @@ public class LoanService {
     @Transactional
     public String repayLoan(Long loanId, BigDecimal amount) throws ResourceNotFoundException {
         log.info("Processing loan repayment loanId={} amount={}", loanId, amount);
-        LoanRequest loan = loanRepo.findById(loanId)
+        LoanRequest loan = loanRepo.findByIdWithAccountAndUser(loanId)
                 .orElseThrow(() -> new ResourceNotFoundException("Loan request not found"));
 
         // Verify ownership
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         String currentEmail = auth != null ? auth.getName() : null;
-        Account account = loan.getBankAccount();
-        if (account.getUser() == null || !account.getUser().getEmail().equalsIgnoreCase(currentEmail)) {
+        
+        // Get account info early to avoid lazy loading issues
+        Account lazyAccount = loan.getBankAccount();
+        String accountNumber = lazyAccount.getAccountNumber();
+        Long accountId = lazyAccount.getId();
+        String userEmail = lazyAccount.getUser().getEmail();
+        
+        if (!userEmail.equalsIgnoreCase(currentEmail)) {
             throw new UnauthorizedAccountAccessException("You are not authorized to repay this loan");
         }
 
-        if (loan.getStatus() != LoanStatus.APPROVED) {
-            throw new BusinessRuleViolationException("Can only repay approved loans");
+        if (loan.getStatus() != LoanStatus.APPROVED && loan.getStatus() != LoanStatus.ACTIVE) {
+            throw new BusinessRuleViolationException("Can only repay approved or active loans");
         }
 
         if (amount.compareTo(BigDecimal.ZERO) <= 0) {
@@ -249,22 +331,30 @@ public class LoanService {
         int tenureInMonths = loan.getTenureInMonths() != null ? loan.getTenureInMonths() : 0;
         BigDecimal emi = calculateMonthlyEmi(loan.getAmount(), interestRate, tenureInMonths);
 
+        // Re-fetch account to ensure it's fully attached to session
+        Account account = accountRepo.findById(accountId)
+                .orElseThrow(() -> new ResourceNotFoundException("Account not found"));
+
         if (account.getBalance().compareTo(amount) < 0) {
             throw new BusinessRuleViolationException("Insufficient balance for repayment");
         }
 
         // Deduct from account
-        account.setBalance(account.getBalance().subtract(amount));
+        BigDecimal oldBalance = account.getBalance();
+        account.setBalance(oldBalance.subtract(amount));
+        accountRepo.save(account);
+        log.info("Account {} balance updated: {} -> {}", accountNumber, oldBalance, account.getBalance());
 
         // Create repayment transaction
         Transaction repayment = Transaction.builder()
                 .sourceAccount(account)
-                .amount(amount.negate())
+                .amount(amount)
                 .type(TransactionType.LOAN_PAYMENT)
-                .timestamp(LocalDate.now().atStartOfDay())
+                .timestamp(LocalDateTime.now())
                 .status(TransactionStatus.SUCCESS)
                 .build();
         transactionRepository.save(repayment);
+        log.info("Loan repayment transaction created for loan {} amount {}", loanId, amount);
 
         // Check if amount covers at least one EMI
         int emisCovered = amount.divide(emi, 0, RoundingMode.DOWN).intValue();
@@ -300,8 +390,10 @@ public class LoanService {
                     "💰 Payment of ₹" + amount + " received for loan #" + loanId + ". EMIs paid: " + loan.getEmisPaid() + "/" + loan.getTenureInMonths());
         }
 
-        accountRepo.save(account);
         loanRepo.save(loan);
+        
+        // Evict caches after loan repayment
+        cacheEvictionService.evictByOperationType("TRANSFER", userEmail, accountNumber);
 
         auditService.record("LOAN_REPAYMENT", "LOAN", String.valueOf(loanId), "SUCCESS",
                 "amount=" + amount + " emisPaid=" + loan.getEmisPaid());

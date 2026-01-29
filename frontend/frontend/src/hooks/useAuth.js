@@ -20,11 +20,28 @@ export const useAuth = () => {
     }
   }, []);
 
+  // Function to logout
+  const logout = useCallback(() => {
+    try {
+      // Clear all storage completely
+      sessionStorage.clear();
+      localStorage.clear(); // Clear any legacy data
+      setUser(null);
+      setIsAuthenticated(false);
+      
+      // Redirect to login page
+      window.location.href = '/login';
+    } catch (error) {
+      console.error('Error during logout:', error);
+    }
+  }, []);
+
   // Function to check authentication status
   const checkAuth = useCallback(() => {
     setIsLoading(true);
     
     try {
+      // Only check sessionStorage - tokens should not persist across browser sessions for security
       const storedUser = sessionStorage.getItem("user");
       
       if (storedUser) {
@@ -36,7 +53,9 @@ export const useAuth = () => {
           setIsAuthenticated(true);
         } else {
           // Clear invalid session data
-          logout();
+          sessionStorage.clear();
+          setUser(null);
+          setIsAuthenticated(false);
         }
       } else {
         setUser(null);
@@ -44,7 +63,9 @@ export const useAuth = () => {
       }
     } catch (error) {
       console.error('Error checking authentication:', error);
-      logout();
+      sessionStorage.clear();
+      setUser(null);
+      setIsAuthenticated(false);
     } finally {
       setIsLoading(false);
     }
@@ -53,25 +74,13 @@ export const useAuth = () => {
   // Function to login
   const login = useCallback((userData) => {
     try {
-      sessionStorage.setItem("user", JSON.stringify(userData));
+      const userJson = JSON.stringify(userData);
+      sessionStorage.setItem("user", userJson);
+      // Do NOT store in localStorage - security risk
       setUser(userData);
       setIsAuthenticated(true);
     } catch (error) {
       console.error('Error during login:', error);
-    }
-  }, []);
-
-  // Function to logout
-  const logout = useCallback(() => {
-    try {
-      sessionStorage.clear();
-      setUser(null);
-      setIsAuthenticated(false);
-      
-      // Redirect to login page
-      window.location.href = '/login';
-    } catch (error) {
-      console.error('Error during logout:', error);
     }
   }, []);
 

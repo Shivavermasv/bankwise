@@ -7,6 +7,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.scheduling.annotation.Scheduled;
 
 import java.time.LocalDateTime;
 import java.util.Map;
@@ -28,10 +29,45 @@ public class TransactionPinService {
     private final EmailService emailService;
     private final AuditService auditService;
 
-    // Track failed PIN attempts (in production, use Redis)
-    private final ConcurrentHashMap<String, Integer> failedAttempts = new ConcurrentHashMap<>();
+    // Track failed PIN attempts with timestamp (in production, use Redis with TTL)
+    private final ConcurrentHashMap<String, FailedAttemptInfo> failedAttempts = new ConcurrentHashMap<>();
     private static final int MAX_FAILED_ATTEMPTS = 3;
     private static final int PIN_LOCKOUT_MINUTES = 30;
+
+    /**
+     * Internal class to track failed attempts with timestamp.
+     */
+    private record FailedAttemptInfo(int count, LocalDateTime lastAttempt) {
+        FailedAttemptInfo increment() {
+            return new FailedAttemptInfo(count + 1, LocalDateTime.now());
+        }
+        
+        boolean isExpired() {
+            return lastAttempt.plusMinutes(PIN_LOCKOUT_MINUTES).isBefore(LocalDateTime.now());
+        }
+        
+        boolean isLockedOut() {
+            return count >= MAX_FAILED_ATTEMPTS && !isExpired();
+        }
+    }
+
+    /**
+     * Clean up expired lockout entries every 15 minutes.
+     */
+    @Scheduled(fixedRate = 900000) // 15 minutes
+    public void cleanupExpiredLockouts() {
+        int removed = 0;
+        for (String email : failedAttempts.keySet()) {
+            FailedAttemptInfo info = failedAttempts.get(email);
+            if (info != null && info.isExpired()) {
+                failedAttempts.remove(email);
+                removed++;
+            }
+        }
+        if (removed > 0) {
+            log.debug("Cleaned up {} expired PIN lockout entries", removed);
+        }
+    }
 
     /**
      * Check if user has a transaction PIN set
@@ -92,11 +128,21 @@ public class TransactionPinService {
             auditService.recordSystem("PIN_VERIFY", "USER", String.valueOf(user.getId()), "SUCCESS", "PIN verified");
             return Map.of("valid", true, "message", "PIN verified");
         } else {
-            int attempts = failedAttempts.merge(userEmail, 1, Integer::sum);
-            int remaining = MAX_FAILED_ATTEMPTS - attempts;
+            // Update failed attempts with timestamp tracking
+            FailedAttemptInfo currentInfo = failedAttempts.get(userEmail);
+            FailedAttemptInfo newInfo;
+            if (currentInfo == null || currentInfo.isExpired()) {
+                // Start fresh count
+                newInfo = new FailedAttemptInfo(1, LocalDateTime.now());
+            } else {
+                newInfo = currentInfo.increment();
+            }
+            failedAttempts.put(userEmail, newInfo);
+            
+            int remaining = MAX_FAILED_ATTEMPTS - newInfo.count();
             
             auditService.recordSystem("PIN_VERIFY", "USER", String.valueOf(user.getId()), "FAILED", 
-                "Invalid PIN. Attempts: " + attempts);
+                "Invalid PIN. Attempts: " + newInfo.count());
 
             if (remaining <= 0) {
                 return Map.of(
@@ -231,8 +277,16 @@ public class TransactionPinService {
      * Check if user is locked out due to failed attempts
      */
     private boolean isLockedOut(String userEmail) {
-        Integer attempts = failedAttempts.get(userEmail);
-        return attempts != null && attempts >= MAX_FAILED_ATTEMPTS;
+        FailedAttemptInfo info = failedAttempts.get(userEmail);
+        if (info == null) {
+            return false;
+        }
+        // If lockout has expired, remove it and allow access
+        if (info.isExpired()) {
+            failedAttempts.remove(userEmail);
+            return false;
+        }
+        return info.isLockedOut();
     }
 
     /**

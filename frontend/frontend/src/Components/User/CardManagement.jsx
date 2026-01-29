@@ -10,7 +10,7 @@ import Navbar from '../Layout/Navbar';
 import { useTheme } from '../../context/ThemeContext';
 
 const CardManagement = ({ embedded = false }) => {
-  const { token, user } = useAuth();
+  const { token, user, isLoading: authLoading } = useAuth();
   const { theme } = useTheme();
   const [cards, setCards] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -21,6 +21,10 @@ const CardManagement = ({ embedded = false }) => {
   const [revealedCards, setRevealedCards] = useState(new Set());
 
   const loadCards = useCallback(async () => {
+    if (!token) {
+      setLoading(false);
+      return;
+    }
     try {
       setLoading(true);
       const data = await cardApi.getAll(token);
@@ -33,8 +37,10 @@ const CardManagement = ({ embedded = false }) => {
   }, [token]);
 
   useEffect(() => {
-    loadCards();
-  }, [loadCards]);
+    if (!authLoading && token) {
+      loadCards();
+    }
+  }, [loadCards, authLoading, token]);
 
   const handleBlockCard = async (cardId) => {
     try {

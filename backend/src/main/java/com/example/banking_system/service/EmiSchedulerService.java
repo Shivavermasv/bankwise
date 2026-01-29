@@ -35,6 +35,8 @@ public class EmiSchedulerService {
     private final TransactionRepository transactionRepository;
     private final UserRepository userRepository;
     private final EmailService emailService;
+    private final IdempotencyService idempotencyService;
+    private final CacheEvictionService cacheEvictionService;
 
     // Credit score adjustments
     private static final int EARLY_PAYMENT_BONUS = 2;      // +2 for early payment
@@ -86,36 +88,86 @@ public class EmiSchedulerService {
     }
 
     /**
-     * Process a single EMI payment for a loan.
+     * Process a single EMI payment for a loan with idempotency to prevent duplicate deductions.
      */
     @Transactional
     public EmiPaymentResult processEmiPayment(LoanRequest loan, LocalDate dueDate) {
-        Account account = loan.getBankAccount();
-        User user = account.getUser();
-        BigDecimal emiAmount = loan.getEmiAmount();
+        // Generate idempotency key: emi::loanId::dueDate to ensure only one deduction per loan per date
+        String idempotencyKey = "emi::" + loan.getId() + "::" + dueDate;
         
-        if (emiAmount == null || emiAmount.compareTo(BigDecimal.ZERO) <= 0) {
-            log.warn("Invalid EMI amount for loan {}", loan.getId());
-            return new EmiPaymentResult(false, "Invalid EMI amount");
+        // Check if this EMI payment was already processed
+        String cachedResult = idempotencyService.getResult(idempotencyKey);
+        if (cachedResult != null) {
+            log.info("Idempotent EMI payment detected for loan {} on {}, returning cached result", 
+                     loan.getId(), dueDate);
+            try {
+                return new com.fasterxml.jackson.databind.ObjectMapper().readValue(cachedResult, EmiPaymentResult.class);
+            } catch (Exception e) {
+                log.warn("Failed to deserialize cached EMI result", e);
+            }
         }
-
-        // Check if sufficient balance (including overdraft)
-        BigDecimal availableBalance = getAvailableBalance(account);
         
-        LocalDate today = LocalDate.now();
-        boolean isEarlyPayment = dueDate.isAfter(today);
-        boolean isOnTime = dueDate.equals(today) || (dueDate.isBefore(today) && 
-                           dueDate.plusDays(GRACE_PERIOD_DAYS).isAfter(today));
-        boolean isLate = dueDate.plusDays(GRACE_PERIOD_DAYS).isBefore(today) || 
-                         dueDate.plusDays(GRACE_PERIOD_DAYS).equals(today);
-        boolean isMissed = dueDate.plusDays(LATE_THRESHOLD_DAYS).isBefore(today);
+        // Acquire lock to ensure only one thread processes this EMI
+        boolean locked = idempotencyService.acquireIdempotencyLock(idempotencyKey);
+        if (!locked) {
+            log.warn("Could not acquire lock for EMI payment: {}, skipping", idempotencyKey);
+            return new EmiPaymentResult(false, "EMI payment already in progress");
+        }
+        
+        try {
+            Account account = loan.getBankAccount();
+            User user = account.getUser();
+            BigDecimal emiAmount = loan.getEmiAmount();
+            
+            if (emiAmount == null || emiAmount.compareTo(BigDecimal.ZERO) <= 0) {
+                log.warn("Invalid EMI amount for loan {}", loan.getId());
+                return new EmiPaymentResult(false, "Invalid EMI amount");
+            }
 
-        if (availableBalance.compareTo(emiAmount) >= 0) {
-            // Sufficient balance - process payment
-            return processSuccessfulEmiPayment(loan, account, user, emiAmount, isEarlyPayment, isOnTime);
-        } else {
-            // Insufficient balance - handle failure
-            return handleInsufficientBalance(loan, account, user, emiAmount, availableBalance, isLate, isMissed);
+            // Check if sufficient balance (including overdraft)
+            BigDecimal availableBalance = getAvailableBalance(account);
+            
+            LocalDate today = LocalDate.now();
+            boolean isEarlyPayment = dueDate.isAfter(today);
+            boolean isOnTime = dueDate.equals(today) || (dueDate.isBefore(today) && 
+                               dueDate.plusDays(GRACE_PERIOD_DAYS).isAfter(today));
+            boolean isLate = dueDate.plusDays(GRACE_PERIOD_DAYS).isBefore(today) || 
+                             dueDate.plusDays(GRACE_PERIOD_DAYS).equals(today);
+            boolean isMissed = dueDate.plusDays(LATE_THRESHOLD_DAYS).isBefore(today);
+
+            EmiPaymentResult result;
+            if (availableBalance.compareTo(emiAmount) >= 0) {
+                // Sufficient balance - process payment
+                result = processSuccessfulEmiPayment(loan, account, user, emiAmount, isEarlyPayment, isOnTime);
+            } else {
+                // Insufficient balance - handle failure
+                result = handleInsufficientBalance(loan, account, user, emiAmount, availableBalance, isLate, isMissed);
+            }
+            
+            // Cache the result for 24 hours to ensure idempotency
+            // storeResult() also releases the lock
+            boolean resultStored = false;
+            try {
+                String resultJson = new com.fasterxml.jackson.databind.ObjectMapper().writeValueAsString(result);
+                idempotencyService.storeResult(idempotencyKey, resultJson);
+                resultStored = true;
+            } catch (Exception e) {
+                log.warn("Failed to serialize EMI result for caching", e);
+            }
+            
+            // Evict EMI cache to refresh dashboard
+            cacheEvictionService.evictByOperationType("EMI", user.getEmail(), account.getAccountNumber());
+            
+            // Release lock if result was not stored (storeResult handles its own lock release)
+            if (!resultStored) {
+                idempotencyService.releaseLock(idempotencyKey);
+            }
+            
+            return result;
+        } catch (Exception e) {
+            log.error("Error processing EMI payment for loan {} on {}: {}", loan.getId(), dueDate, e.getMessage());
+            idempotencyService.releaseLock(idempotencyKey);
+            throw e;
         }
     }
 

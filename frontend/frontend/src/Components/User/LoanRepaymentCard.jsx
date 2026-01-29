@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { getActiveLoan, getEmiDetails, repayLoan } from '../../services/loans';
-import { FaCreditCard, FaCalendarAlt, FaMoneyBillWave, FaExclamationTriangle } from 'react-icons/fa';
+import { invalidateCache } from '../../utils/apiClient';
+import { FaCreditCard, FaCalendarAlt, FaMoneyBillWave, FaExclamationTriangle, FaCheckCircle, FaTimesCircle } from 'react-icons/fa';
 
-const LoanRepaymentCard = ({ user }) => {
+const LoanRepaymentCard = ({ user, onPaymentSuccess }) => {
   const [activeLoan, setActiveLoan] = useState(null);
   const [emiDetails, setEmiDetails] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -11,6 +12,8 @@ const LoanRepaymentCard = ({ user }) => {
   const [repaying, setRepaying] = useState(false);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [paymentDetails, setPaymentDetails] = useState(null);
 
   useEffect(() => {
     loadActiveLoan();
@@ -45,15 +48,34 @@ const LoanRepaymentCard = ({ user }) => {
     setError('');
     setMessage('');
     try {
+      const paidAmount = parseFloat(repayAmount);
       const result = await repayLoan({
         token: user.token,
         loanId: activeLoan.id,
-        amount: parseFloat(repayAmount)
+        amount: paidAmount
       });
-      setMessage(typeof result === 'string' ? result : 'Payment successful!');
+      
+      // Store payment details for success modal
+      setPaymentDetails({
+        amount: paidAmount,
+        loanId: activeLoan.id,
+        message: typeof result === 'string' ? result : 'Payment successful!',
+        timestamp: new Date().toLocaleString()
+      });
+      setShowSuccessModal(true);
       setRepayAmount('');
+      
+      // Invalidate caches and reload
+      invalidateCache('/api/user');
+      invalidateCache('/api/account');
+      
       // Reload loan details
       loadActiveLoan();
+      
+      // Notify parent to refresh user data (balance)
+      if (onPaymentSuccess) {
+        onPaymentSuccess();
+      }
     } catch (e) {
       setError(e.message || 'Payment failed');
     } finally {
@@ -184,7 +206,7 @@ const LoanRepaymentCard = ({ user }) => {
       )}
 
       {/* Messages */}
-      {message && (
+      {message && !showSuccessModal && (
         <div className="mt-3 p-3 rounded-lg bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-300 text-sm">
           {message}
         </div>
@@ -194,6 +216,67 @@ const LoanRepaymentCard = ({ user }) => {
           {error}
         </div>
       )}
+
+      {/* Success Modal */}
+      <AnimatePresence>
+        {showSuccessModal && paymentDetails && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm"
+            onClick={() => setShowSuccessModal(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.8, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.8, opacity: 0 }}
+              className="bg-white dark:bg-slate-800 rounded-2xl shadow-2xl p-8 max-w-md w-full mx-4"
+              onClick={e => e.stopPropagation()}
+            >
+              <div className="text-center">
+                <div className="w-20 h-20 mx-auto mb-4 rounded-full bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center">
+                  <FaCheckCircle className="text-4xl text-emerald-500" />
+                </div>
+                <h3 className="text-2xl font-bold text-slate-800 dark:text-slate-100 mb-2">
+                  Payment Successful!
+                </h3>
+                <p className="text-slate-600 dark:text-slate-400 mb-6">
+                  {paymentDetails.message}
+                </p>
+                
+                <div className="bg-slate-50 dark:bg-slate-700/50 rounded-xl p-4 mb-6 text-left">
+                  <div className="flex justify-between py-2 border-b border-slate-200 dark:border-slate-600">
+                    <span className="text-slate-500 dark:text-slate-400">Amount Paid</span>
+                    <span className="font-semibold text-emerald-600 dark:text-emerald-400">
+                      ₹{paymentDetails.amount.toLocaleString('en-IN')}
+                    </span>
+                  </div>
+                  <div className="flex justify-between py-2 border-b border-slate-200 dark:border-slate-600">
+                    <span className="text-slate-500 dark:text-slate-400">Loan ID</span>
+                    <span className="font-medium text-slate-800 dark:text-slate-200">
+                      #{paymentDetails.loanId}
+                    </span>
+                  </div>
+                  <div className="flex justify-between py-2">
+                    <span className="text-slate-500 dark:text-slate-400">Time</span>
+                    <span className="font-medium text-slate-800 dark:text-slate-200">
+                      {paymentDetails.timestamp}
+                    </span>
+                  </div>
+                </div>
+
+                <button
+                  onClick={() => setShowSuccessModal(false)}
+                  className="w-full py-3 px-6 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 text-white font-semibold hover:from-emerald-600 hover:to-teal-600 transition-all shadow-lg hover:shadow-xl"
+                >
+                  Done
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </motion.div>
   );
 };

@@ -1,10 +1,11 @@
 import React, { useEffect, useState } from 'react';
 import { listDeposits, depositAction } from '../../services/accounts';
 import { toDisplayString } from '../../utils';
+import { invalidateCache } from '../../utils/apiClient';
 
 const statuses = ['ALL','PENDING','DEPOSITED','REJECTED'];
 
-const DepositRequestsAdmin = ({ token }) => {
+const DepositRequestsAdmin = ({ token, refreshTrigger = 0 }) => {
   const [status, setStatus] = useState('PENDING');
   const [requests, setRequests] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -13,12 +14,15 @@ const DepositRequestsAdmin = ({ token }) => {
 
   const load = async () => {
     setLoading(true); setError(null);
+    // Invalidate cache to get fresh data
+    invalidateCache('/api/account/depositRequests');
     try { const data = await listDeposits({ token, status }); setRequests(data); }
     catch(e){ setError(e.message||'Failed'); }
     finally { setLoading(false); }
   };
 
-  useEffect(()=>{ if(token) load(); }, [status, token]);
+  // Refresh when status, token, or refreshTrigger changes
+  useEffect(()=>{ if(token) load(); }, [status, token, refreshTrigger]);
 
   const act = async (id, action) => {
     const res = await depositAction({ token, action, depositRequestId: id });

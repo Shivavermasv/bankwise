@@ -1,27 +1,51 @@
-import { apiFetch, listDepositRequests, performDepositAction, startGlobalLoading, stopGlobalLoading } from '../utils/apiClient';
+import { apiFetch, listDepositRequests, performDepositAction, startGlobalLoading, stopGlobalLoading, invalidateCache } from '../utils/apiClient';
 import { buildUrl } from '../utils/apiClient';
 
-export function createDepositRequest({ token, accountNumber, amount, reference }) {
-  return apiFetch('/api/account/deposit', {
+/**
+ * Generate UUID v4 for idempotency key
+ */
+const generateIdempotencyKey = () => {
+  return crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`;
+};
+
+export async function createDepositRequest({ token, accountNumber, amount, reference }) {
+  // Generate idempotency key to prevent duplicate deposits on retry
+  const idempotencyKey = generateIdempotencyKey();
+  const result = await apiFetch('/api/account/deposit', {
     method: 'POST',
     token,
+    headers: {
+      'Idempotency-Key': idempotencyKey
+    },
     body: { accountNumber, amount, refferenceNumber: reference }
   });
+  
+  // Invalidate caches after deposit request
+  invalidateCache('/api/account');
+  invalidateCache('/api/transaction');
+  invalidateCache('/api/analytics');
+  
+  return result;
 }
 
-export function updateInterestRate({ token, accountNumber, newInterestRate }) {
-  return apiFetch('/api/account/interestRate', {
+export async function updateInterestRate({ token, accountNumber, newInterestRate }) {
+  const result = await apiFetch('/api/account/interestRate', {
     token,
     query: { accountNumber, newInterestRate }
   });
+  invalidateCache('/api/account');
+  return result;
 }
 
-export function updateAccountStatus({ token, accountNumber, status }) {
-  return apiFetch(`/api/account/updateAccountStatus/${encodeURIComponent(accountNumber)}`, {
+export async function updateAccountStatus({ token, accountNumber, status }) {
+  const result = await apiFetch(`/api/account/updateAccountStatus/${encodeURIComponent(accountNumber)}`, {
     method: 'PATCH',
     token,
     body: { status }
   });
+  invalidateCache('/api/account');
+  invalidateCache('/api/admin');
+  return result;
 }
 
 export function submitKyc({ token, formData }) {
@@ -55,8 +79,15 @@ export function listDeposits({ token, status }) {
   return listDepositRequests({ token, status });
 }
 
-export function depositAction({ token, action, depositRequestId }) {
-  return performDepositAction({ token, action, depositRequestId });
+export async function depositAction({ token, action, depositRequestId }) {
+  const result = await performDepositAction({ token, action, depositRequestId });
+  // Invalidate caches after deposit approval/rejection
+  invalidateCache('/api/account');
+  invalidateCache('/api/transaction');
+  invalidateCache('/api/analytics');
+  invalidateCache('/api/deposit');
+  invalidateCache('/api/admin');
+  return result;
 }
 
 export function listAdminAccounts({ token, status, query }) {

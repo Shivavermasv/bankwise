@@ -74,7 +74,7 @@ public class Account {
     // 2 -> 12% / per month(amount > 30k)
     // 3 -> 12% / per 3 month (amount > 20,000)
 
-    @ManyToOne(cascade = CascadeType.PERSIST)
+    @ManyToOne(cascade = CascadeType.PERSIST, fetch = FetchType.EAGER)
     @JoinColumn(name = "user_id")
     @JsonIgnore
     private User user;

@@ -4,6 +4,7 @@ import { FaEye, FaEyeSlash, FaUniversity, FaShieldAlt, FaCreditCard, FaChartLine
 import { motion, AnimatePresence } from "framer-motion";
 import { loginWithCredentials as apiLogin, verifyOtpAndFetchToken as apiVerifyOtp } from "../../utils/authApi";
 import { toDisplayString } from "../../utils";
+import { storeUser, getStoredUser } from "../../utils/auth";
 
 const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -84,28 +85,14 @@ const LoginPage = () => {
 
   // Check if user is already logged in and redirect
   useEffect(() => {
-    const user = JSON.parse(sessionStorage.getItem("user") || "{}");
+    const user = getStoredUser();
     
-    if (user.token && user.email && user.role) {
-      // Validate token
-      try {
-        const tokenPayload = JSON.parse(atob(user.token.split('.')[1]));
-        const currentTime = Date.now() / 1000;
-        
-        if (tokenPayload.exp && tokenPayload.exp > currentTime) {
-          // User is already logged in with valid token, redirect to appropriate home
-          if (user.role === "ADMIN" || user.role === "MANAGER") {
-            navigate("/admin-home", { replace: true });
-          } else {
-            navigate("/home", { replace: true });
-          }
-        } else {
-          // Token expired, clear session
-          sessionStorage.clear();
-        }
-      } catch {
-        // Invalid token, clear session
-        sessionStorage.clear();
+    if (user) {
+      // User is already logged in with valid token, redirect to appropriate home
+      if (user.role === "ADMIN" || user.role === "MANAGER") {
+        navigate("/admin-home", { replace: true });
+      } else {
+        navigate("/home", { replace: true });
       }
     }
   }, [navigate]);
@@ -154,8 +141,7 @@ const LoginPage = () => {
       }
       if (result.step === 'authenticated') {
         const data = result.user;
-        sessionStorage.setItem('user', JSON.stringify(data));
-        sessionStorage.setItem('token', data.token);
+        storeUser(data);
         sessionStorage.setItem('justLoggedIn', 'true');
         if (data.role === 'ADMIN' || data.role === 'MANAGER') {
           navigate('/admin-home');
@@ -201,8 +187,7 @@ const LoginPage = () => {
         setOtpError('OTP verification failed');
         return;
       }
-      sessionStorage.setItem('user', JSON.stringify(data));
-      sessionStorage.setItem('token', data.token);
+      storeUser(data);
       sessionStorage.setItem('justLoggedIn', 'true');
       if (data.role === 'ADMIN' || data.role === 'MANAGER') {
         navigate('/admin-home');

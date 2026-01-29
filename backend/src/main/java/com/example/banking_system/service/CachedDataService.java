@@ -26,10 +26,27 @@ public class CachedDataService {
         return userRepository.findByEmail(email).orElseThrow(()-> new RuntimeException("User Not Found"));
     }
 
+    /**
+     * Get account by number with caching.
+     * WARNING: The cached entity may have detached user reference.
+     * For authorization checks, use getAccountByNumberForAuth() instead.
+     */
     @Cacheable(value = "accountByNumber", key = "#accountNumber", unless = "#result == null")
     public Account getAccountByNumber(String accountNumber) {
         log.debug("Cache MISS: Loading account: {}", accountNumber);
-        return accountRepository.findByAccountNumber(accountNumber).orElseThrow(()-> new AccountNotFoundException("Account not found with number: " + accountNumber));
+        // Use query that eagerly fetches user to avoid lazy loading issues with cached entities
+        return accountRepository.findByAccountNumberWithUser(accountNumber)
+            .orElseThrow(() -> new AccountNotFoundException("Account not found with number: " + accountNumber));
+    }
+
+    /**
+     * Get account by number with fresh database fetch (bypasses cache).
+     * Use this for authorization checks where user relationship is critical.
+     */
+    public Account getAccountByNumberForAuth(String accountNumber) {
+        log.debug("Loading account for auth (no cache): {}", accountNumber);
+        return accountRepository.findByAccountNumberWithUser(accountNumber)
+            .orElseThrow(() -> new AccountNotFoundException("Account not found with number: " + accountNumber));
     }
 
     @Cacheable(value = "accountBalances", key = "#accountNumber")

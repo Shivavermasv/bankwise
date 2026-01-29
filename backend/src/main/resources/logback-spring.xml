@@ -108,6 +108,12 @@
         <appender-ref ref="CONSOLE"/>
     </logger>
 
+    <!-- Logger for JWT Authorization Filter - DEBUG for troubleshooting -->
+    <logger name="com.example.banking_system.config.JWTAuthorizationFilter" level="DEBUG" additivity="false">
+        <appender-ref ref="SECURITY_FILE"/>
+        <appender-ref ref="CONSOLE"/>
+    </logger>
+
     <!-- Logger for performance filter -->
     <logger name="com.example.banking_system.config.RequestTimingFilter" level="INFO" additivity="false">
         <appender-ref ref="PERFORMANCE_FILE"/>

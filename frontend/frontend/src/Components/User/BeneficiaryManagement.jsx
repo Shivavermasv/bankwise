@@ -6,7 +6,7 @@ import Navbar from '../Layout/Navbar';
 import { useTheme } from '../../context/ThemeContext';
 
 const BeneficiaryManagement = ({ onSelectBeneficiary, showSelectMode = false, embedded = false }) => {
-  const { token } = useAuth();
+  const { token, isLoading: authLoading } = useAuth();
   const { theme } = useTheme();
   const [beneficiaries, setBeneficiaries] = useState([]);
   const [favorites, setFavorites] = useState([]);
@@ -18,6 +18,10 @@ const BeneficiaryManagement = ({ onSelectBeneficiary, showSelectMode = false, em
   const [activeTab, setActiveTab] = useState('all'); // 'all' | 'favorites' | 'recent'
 
   const loadBeneficiaries = useCallback(async () => {
+    if (!token) {
+      setLoading(false);
+      return;
+    }
     try {
       setLoading(true);
       const [allData, favData] = await Promise.all([
@@ -34,8 +38,10 @@ const BeneficiaryManagement = ({ onSelectBeneficiary, showSelectMode = false, em
   }, [token]);
 
   useEffect(() => {
-    loadBeneficiaries();
-  }, [loadBeneficiaries]);
+    if (!authLoading && token) {
+      loadBeneficiaries();
+    }
+  }, [loadBeneficiaries, authLoading, token]);
 
   const handleSearch = async (query) => {
     setSearchQuery(query);

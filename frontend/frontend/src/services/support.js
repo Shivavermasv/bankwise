@@ -1,11 +1,13 @@
-import { apiFetch } from '../utils/apiClient';
+import { apiFetch, invalidateCache } from '../utils/apiClient';
 
-export function createSupportTicket({ token, payload }) {
-  return apiFetch('/api/support/tickets', {
+export async function createSupportTicket({ token, payload }) {
+  const result = await apiFetch('/api/support/tickets', {
     method: 'POST',
     token,
     body: payload
   });
+  invalidateCache('/api/support');
+  return result;
 }
 
 export function listMySupportTickets({ token }) {

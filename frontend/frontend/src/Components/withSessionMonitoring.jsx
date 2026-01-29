@@ -6,7 +6,7 @@ import { isSessionValid, clearSessionAndRedirect } from '../utils/auth';
  * Higher-order component that monitors session validity
  * and automatically redirects to login when session expires
  */
-const withSessionMonitoring = (WrappedComponent) => {
+const withSessionMonitoring = (Component) => {
   return function SessionMonitoredComponent(props) {
     const navigate = useNavigate();
 
@@ -41,7 +41,7 @@ const withSessionMonitoring = (WrappedComponent) => {
       };
     }, [navigate]);
 
-    return <WrappedComponent {...props} />;
+    return <Component {...props} />;
   };
 };
 

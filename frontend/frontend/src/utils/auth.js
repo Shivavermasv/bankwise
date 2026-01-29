@@ -33,11 +33,49 @@ export const isSessionValid = (user) => {
 };
 
 /**
+ * Gets user from sessionStorage only (secure - doesn't persist across tabs)
+ * @returns {object|null} - User object or null
+ */
+export const getStoredUser = () => {
+  // Only check sessionStorage - tokens should not persist across browser sessions
+  const storedUser = sessionStorage.getItem("user");
+  if (storedUser) {
+    try {
+      const user = JSON.parse(storedUser);
+      if (isSessionValid(user)) {
+        return user;
+      } else {
+        // Token expired, clear it
+        sessionStorage.clear();
+      }
+    } catch {
+      // Invalid JSON, clear it
+      sessionStorage.clear();
+    }
+  }
+  
+  return null;
+};
+
+/**
+ * Stores user in sessionStorage only (more secure - doesn't persist across tabs)
+ * @param {object} user - User object
+ */
+export const storeUser = (user) => {
+  const userJson = JSON.stringify(user);
+  sessionStorage.setItem("user", userJson);
+  sessionStorage.setItem("token", user.token);
+  // Do NOT store in localStorage - this is a security risk
+};
+
+/**
  * Clears session and redirects to login
  * @param {function} navigate - React Router navigate function
  */
 export const clearSessionAndRedirect = (navigate) => {
+  // Clear all storage to ensure complete logout
   sessionStorage.clear();
+  localStorage.clear(); // Clear any legacy data
   if (navigate) {
     navigate('/login', { replace: true });
   } else {

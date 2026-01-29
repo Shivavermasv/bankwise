@@ -10,8 +10,11 @@ import java.util.List;
 
 public interface DepositRepository extends JpaRepository<DepositRequest,Long> {
 
-    @Query("SELECT d from DepositRequest d WHERE d.status= :status")
+    @Query("SELECT d FROM DepositRequest d JOIN FETCH d.account WHERE d.status = :status")
     List<DepositRequest> findByStatus(@Param("status") DepositStatus status);
+
+    @Query("SELECT d FROM DepositRequest d JOIN FETCH d.account")
+    List<DepositRequest> findAllWithAccount();
 
     long countByStatus(DepositStatus status);
 

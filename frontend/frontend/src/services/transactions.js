@@ -1,16 +1,48 @@
-import { apiFetch, buildUrl } from '../utils/apiClient';
+import { apiFetch, buildUrl, invalidateCache } from '../utils/apiClient';
 
-export function transferFunds({ token, fromAccount, toAccount, amount }) {
-  return apiFetch('/api/transaction/transfer', {
+/**
+ * Generate UUID v4 for idempotency key
+ */
+const generateIdempotencyKey = () => {
+  return crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`;
+};
+
+export async function transferFunds({ token, fromAccount, toAccount, amount }) {
+  // Generate idempotency key to prevent duplicate transfers on retry
+  const idempotencyKey = generateIdempotencyKey();
+  const result = await apiFetch('/api/transaction/transfer', {
     method: 'POST',
     token,
+    headers: {
+      'Idempotency-Key': idempotencyKey
+    },
     body: { fromAccount, toAccount, amount }
   });
+  
+  // Update balance in sessionStorage if newBalance is returned
+  if (result?.newBalance !== undefined && result?.newBalance !== null) {
+    try {
+      const user = JSON.parse(sessionStorage.getItem('user') || '{}');
+      user.balance = result.newBalance;
+      sessionStorage.setItem('user', JSON.stringify(user));
+      // Do NOT update localStorage - security risk
+    } catch (e) {
+      console.error('Failed to update balance in storage:', e);
+    }
+  }
+  
+  // Invalidate transaction and account caches after successful transfer
+  invalidateCache('/api/transaction');
+  invalidateCache('/api/account');
+  invalidateCache('/api/analytics');
+  
+  return result;
 }
 
 export function fetchTransactions({ token, accountNumber, page, size, startDate, endDate }) {
   return apiFetch('/api/transaction/transaction', {
     token,
+    cache: false, // Always fetch fresh transaction data
     query: { accountNumber, page, size, startDate, endDate }
   });
 }

@@ -14,7 +14,7 @@ import { useTheme } from '../../context/ThemeContext';
  * Displays active loans, EMI schedules, and allows manual payments and auto-debit settings
  */
 const EmiManagement = ({ embedded = false }) => {
-  const { token } = useAuth();
+  const { token, isLoading: authLoading } = useAuth();
   const { theme } = useTheme();
   const [loans, setLoans] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -24,6 +24,10 @@ const EmiManagement = ({ embedded = false }) => {
   const [scheduleLoading, setScheduleLoading] = useState(false);
 
   const loadLoans = useCallback(async () => {
+    if (!token) {
+      setLoading(false);
+      return;
+    }
     try {
       setLoading(true);
       const data = await emiApi.getAllLoans(token);
@@ -36,8 +40,10 @@ const EmiManagement = ({ embedded = false }) => {
   }, [token]);
 
   useEffect(() => {
-    loadLoans();
-  }, [loadLoans]);
+    if (!authLoading && token) {
+      loadLoans();
+    }
+  }, [loadLoans, authLoading, token]);
 
   const loadSchedule = async (loanId) => {
     try {

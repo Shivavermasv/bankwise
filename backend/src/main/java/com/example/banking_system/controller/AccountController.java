@@ -112,7 +112,7 @@ public class AccountController {
         return ResponseEntity.ok(depositService.handleDepositAction(depositRequestId, action));
     }
 
-    @PutMapping("depositRequests")
+    @GetMapping("depositRequests")
     @PreAuthorize("hasAnyRole('ADMIN','MANAGER')")
     public ResponseEntity<Object> getDepositRequestsByStatus
             (@RequestParam(required = false, defaultValue = "ALL") String status) {
@@ -121,7 +121,11 @@ public class AccountController {
 
     @PreAuthorize("hasAnyRole('USER','CUSTOMER')")
     @PostMapping("deposit")
-    public ResponseEntity<Object> deposit(@Valid @RequestBody DepositRequestDto depositRequestDto){
+    public ResponseEntity<Object> deposit(@Valid @RequestBody DepositRequestDto depositRequestDto,
+                                          @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey){
+        if (idempotencyKey != null && !idempotencyKey.trim().isEmpty()) {
+            return ResponseEntity.ok(depositService.createDepositRequestWithIdempotency(depositRequestDto, idempotencyKey));
+        }
         return ResponseEntity.ok(depositService.createDepositRequest(depositRequestDto));
     }
 

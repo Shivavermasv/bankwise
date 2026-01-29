@@ -332,15 +332,27 @@ public class AccountService {
         Pageable pageable = PageRequest.of(0, 8);
         boolean isNumeric = Pattern.matches("\\d+", q);
         List<Account> accounts;
+        
+        // Search for ALL accounts except SUSPENDED (include VERIFIED, PENDING, and ACTIVE)
         if (isNumeric) {
-            accounts = accountRepository
-                    .searchRecipientsByAccountOrPhone(VerificationStatus.VERIFIED, q, pageable)
-                    .getContent();
+            accounts = accountRepository.findAll((root, query1, cb) -> {
+                return cb.and(
+                    cb.not(cb.equal(root.get("verificationStatus"), VerificationStatus.SUSPENDED)),
+                    cb.or(
+                        cb.like(root.get("accountNumber"), "%" + q + "%"),
+                        cb.like(root.get("user").get("phone"), "%" + q + "%")
+                    )
+                );
+            }, pageable).getContent();
         } else {
-            accounts = accountRepository
-                    .searchRecipientsByName(VerificationStatus.VERIFIED, q, pageable)
-                    .getContent();
+            accounts = accountRepository.findAll((root, query1, cb) -> {
+                return cb.and(
+                    cb.not(cb.equal(root.get("verificationStatus"), VerificationStatus.SUSPENDED)),
+                    cb.like(cb.lower(root.get("user").get("name")), "%" + q.toLowerCase() + "%")
+                );
+            }, pageable).getContent();
         }
+        
         return accounts.stream()
                 .map(acc -> {
                     var builder = TransferRecipientDto.builder()

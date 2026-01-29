@@ -26,7 +26,7 @@ const STATUS_COLORS = {
 };
 
 const ScheduledPayments = ({ embedded = false }) => {
-  const { token } = useAuth();
+  const { token, isLoading: authLoading } = useAuth();
   const { theme } = useTheme();
   const [payments, setPayments] = useState([]);
   const [upcomingPayments, setUpcomingPayments] = useState([]);
@@ -37,6 +37,10 @@ const ScheduledPayments = ({ embedded = false }) => {
   const [activeTab, setActiveTab] = useState('all'); // 'all' | 'active' | 'upcoming'
 
   const loadPayments = useCallback(async () => {
+    if (!token) {
+      setLoading(false);
+      return;
+    }
     try {
       setLoading(true);
       const [allData, upcomingData] = await Promise.all([
@@ -53,8 +57,10 @@ const ScheduledPayments = ({ embedded = false }) => {
   }, [token]);
 
   useEffect(() => {
-    loadPayments();
-  }, [loadPayments]);
+    if (!authLoading && token) {
+      loadPayments();
+    }
+  }, [loadPayments, authLoading, token]);
 
   const handlePause = async (id) => {
     try {
@@ -367,9 +373,11 @@ const SchedulePaymentModal = ({ payment, token, onClose, onSuccess }) => {
 
     try {
       if (payment) {
-        await scheduledPaymentApi.update(token, payment.id, formData);
+        // Note: Update endpoint doesn't exist - cancel and recreate instead
+        await scheduledPaymentApi.cancel(token, payment.id);
+        await scheduledPaymentApi.createTransfer(token, formData);
       } else {
-        await scheduledPaymentApi.create(token, formData);
+        await scheduledPaymentApi.createTransfer(token, formData);
       }
       onSuccess();
     } catch (err) {

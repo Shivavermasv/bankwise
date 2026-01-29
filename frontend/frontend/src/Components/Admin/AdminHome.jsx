@@ -10,6 +10,7 @@ import DepositRequestsAdmin from "./DepositRequestsAdmin";
 import { getAnalytics, getRealtimeAnalytics } from "../../services/admin";
 import { fetchNotifications as fetchNotificationsApi, markNotificationSeen } from "../../services/notifications";
 import { listDeposits, depositAction, updateAccountStatus } from "../../services/accounts";
+import { invalidateCache } from "../../utils/apiClient";
 import { updateLoanStatus } from "../../services/loans";
 import { fetchAuditLogs } from "../../services/audit";
 import { useTheme } from '../../context/ThemeContext.jsx';
@@ -44,6 +45,7 @@ const AdminHome = () => {
   const [unseenCount, setUnseenCount] = useState(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [depositRefreshTrigger, setDepositRefreshTrigger] = useState(0);
   
   // Admin dashboard data
   const [dashboardData, setDashboardData] = useState({
@@ -170,6 +172,12 @@ const AdminHome = () => {
     onNotification: (notif) => {
       setNotifications(prev => [notif, ...prev]);
       setUnseenCount(prev => prev + 1);
+      
+      // Auto-refresh deposit requests when a deposit notification arrives
+      if (notif.message && (notif.message.includes('deposit request') || notif.message.includes('deposit'))) {
+        invalidateCache('/api/account/depositRequests');
+        setDepositRefreshTrigger(prev => prev + 1);
+      }
     }
   });
 
@@ -452,7 +460,7 @@ const AdminHome = () => {
                 )}
                 {/* Admin Deposit Requests Table (integrated component) */}
                 <div className="mt-8">
-                  <DepositRequestsAdmin />
+                  <DepositRequestsAdmin token={user.token} refreshTrigger={depositRefreshTrigger} />
                 </div>
               </div>
             )}

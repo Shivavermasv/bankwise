@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from "react";
-import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import Navbar from "../Layout/Navbar";
 import { useTheme } from '../../context/ThemeContext.jsx';
@@ -126,19 +125,14 @@ const TransactionHistoryPage = () => {
   };
 
   // Get transaction type color and display info
+  // Now the backend sends negative amounts for debits (outgoing), positive for credits (incoming)
   const getTransactionColor = (type, amount) => {
-    // Loan disbursement - money received (green)
-    if (type === 'LOAN_DISBURSEMENT') return '#10b981';
-    // Loan payments/penalties - money going out (red)
-    if (type === 'LOAN_PAYMENT' || type === 'LOAN_PENALTY') return '#ef4444';
-    // Deposit - money coming in (green)
-    if (type === 'DEPOSIT') return '#10b981';
-    // Transfer/Withdraw - check amount direction
-    if (type === 'TRANSFER' || type === 'WITHDRAW') return '#ef4444';
-    // Generic credit/debit
-    if (type === 'CREDIT' || amount > 0) return '#10b981';
-    if (type === 'DEBIT' || amount < 0) return '#ef4444';
-    return '#64748b';
+    // Primary: Use amount sign to determine color
+    // Positive amount = credit (money in) = green
+    // Negative amount = debit (money out) = red
+    if (amount > 0) return '#10b981'; // Green for credits
+    if (amount < 0) return '#ef4444'; // Red for debits
+    return '#64748b'; // Gray for zero
   };
   
   // Get display-friendly transaction type name
@@ -164,9 +158,7 @@ const TransactionHistoryPage = () => {
         padding: "40px 20px"
       }}>
         {/* Header */}
-        <motion.div
-          initial={{ opacity: 0, y: -20 }}
-          animate={{ opacity: 1, y: 0 }}
+        <div
           style={{
             display: "flex",
             justifyContent: "space-between",
@@ -205,13 +197,10 @@ const TransactionHistoryPage = () => {
           >
             ← Back to Dashboard
           </button>
-        </motion.div>
+        </div>
 
         {/* Filters and PDF Button */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.1 }}
+        <div
           style={{
             background: "rgba(255,255,255,0.9)",
             backdropFilter: "blur(10px)",
@@ -370,9 +359,7 @@ const TransactionHistoryPage = () => {
           </div>
 
           {pdfSuccess && (
-            <motion.div
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
+            <div
               style={{
                 marginTop: 16,
                 padding: 12,
@@ -385,15 +372,12 @@ const TransactionHistoryPage = () => {
               }}
             >
               ✅ Transaction PDF has been sent to your email address!
-            </motion.div>
+            </div>
           )}
-        </motion.div>
+        </div>
 
         {/* Transaction Table */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.2 }}
+        <div
           style={{
             background: "rgba(255,255,255,0.9)",
             backdropFilter: "blur(10px)",
@@ -523,11 +507,8 @@ const TransactionHistoryPage = () => {
                   </thead>
                   <tbody>
                     {transactions.map((transaction, index) => (
-                      <motion.tr
+                      <tr
                         key={transaction.id || index}
-                        initial={{ opacity: 0, x: -20 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        transition={{ delay: index * 0.05 }}
                         style={{
                           borderBottom: "1px solid rgba(148,163,184,0.1)"
                         }}
@@ -568,7 +549,7 @@ const TransactionHistoryPage = () => {
                           textAlign: "right",
                           color: getTransactionColor(transaction.type, transaction.amount)
                         }}>
-                          {transaction.amount > 0 ? "+" : ""}{formatCurrency(transaction.amount)}
+                          {transaction.amount >= 0 ? "+" : "-"}{formatCurrency(Math.abs(transaction.amount))}
                         </td>
                         <td style={{
                           padding: 16,
@@ -579,7 +560,7 @@ const TransactionHistoryPage = () => {
                         }}>
                           {formatCurrency(transaction.balance || 0)}
                         </td>
-                      </motion.tr>
+                      </tr>
                     ))}
                   </tbody>
                 </table>
@@ -652,7 +633,7 @@ const TransactionHistoryPage = () => {
               )}
             </>
           )}
-        </motion.div>
+        </div>
       </div>
     </div>
   );

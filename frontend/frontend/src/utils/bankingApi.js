@@ -202,10 +202,17 @@ export const scheduledPaymentApi = {
   },
 
   /**
-   * Create a new scheduled payment
+   * Get payment summary
    */
-  async create(token, paymentData) {
-    const result = await apiFetch('/api/scheduled-payments', {
+  async getSummary(token) {
+    return apiFetch('/api/scheduled-payments/summary', { token });
+  },
+
+  /**
+   * Create a new scheduled transfer
+   */
+  async createTransfer(token, paymentData) {
+    const result = await apiFetch('/api/scheduled-payments/transfer', {
       method: 'POST',
       token,
       body: paymentData
@@ -215,11 +222,11 @@ export const scheduledPaymentApi = {
   },
 
   /**
-   * Update scheduled payment
+   * Create a new scheduled bill payment
    */
-  async update(token, id, paymentData) {
-    const result = await apiFetch(`/api/scheduled-payments/${id}`, {
-      method: 'PUT',
+  async createBill(token, paymentData) {
+    const result = await apiFetch('/api/scheduled-payments/bill', {
+      method: 'POST',
       token,
       body: paymentData
     });
@@ -252,11 +259,11 @@ export const scheduledPaymentApi = {
   },
 
   /**
-   * Cancel a scheduled payment
+   * Cancel (delete) a scheduled payment
    */
   async cancel(token, id) {
-    const result = await apiFetch(`/api/scheduled-payments/${id}/cancel`, {
-      method: 'POST',
+    const result = await apiFetch(`/api/scheduled-payments/${id}`, {
+      method: 'DELETE',
       token
     });
     invalidateCache('/api/scheduled-payments');
@@ -278,7 +285,7 @@ export const transactionPinApi = {
    * Set up a new transaction PIN
    */
   async setup(token, pin) {
-    return apiFetch('/api/transaction-pin/setup', {
+    return apiFetch('/api/transaction-pin/set', {
       method: 'POST',
       token,
       body: { pin }
@@ -300,7 +307,7 @@ export const transactionPinApi = {
    * Initiate forgot PIN flow (sends OTP)
    */
   async forgotPin(token) {
-    return apiFetch('/api/transaction-pin/forgot', {
+    return apiFetch('/api/transaction-pin/forgot/initiate', {
       method: 'POST',
       token
     });
@@ -310,7 +317,7 @@ export const transactionPinApi = {
    * Reset PIN with OTP verification
    */
   async reset(token, otp, newPin) {
-    return apiFetch('/api/transaction-pin/reset', {
+    return apiFetch('/api/transaction-pin/forgot/complete', {
       method: 'POST',
       token,
       body: { otp, newPin }
@@ -364,13 +371,38 @@ export const analyticsApi = {
   },
 
   /**
-   * Get monthly summary (income vs expense)
+   * Get income analytics
    */
-  async getMonthlySummary(token, year, month) {
-    return apiFetch('/api/analytics/monthly-summary', {
-      token,
-      query: { year, month }
-    });
+  async getIncome(token) {
+    return apiFetch('/api/analytics/income', { token });
+  },
+
+  /**
+   * Get financial health score
+   */
+  async getHealth(token) {
+    return apiFetch('/api/analytics/health', { token });
+  },
+
+  /**
+   * Get monthly trends for charts
+   */
+  async getTrends(token) {
+    return apiFetch('/api/analytics/trends', { token });
+  },
+
+  /**
+   * Get upcoming obligations (EMIs, scheduled payments)
+   */
+  async getUpcoming(token) {
+    return apiFetch('/api/analytics/upcoming', { token });
+  },
+
+  /**
+   * Get account summary
+   */
+  async getAccountSummary(token) {
+    return apiFetch('/api/analytics/account-summary', { token });
   }
 };
 
@@ -394,6 +426,9 @@ export const emiApi = {
     });
     invalidateCache('/api/emi');
     invalidateCache('/api/analytics');
+    invalidateCache('/api/account');
+    invalidateCache('/api/transaction');
+    invalidateCache('/api/loan');
     return result;
   },
 

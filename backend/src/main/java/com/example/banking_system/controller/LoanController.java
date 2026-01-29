@@ -10,13 +10,7 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.*;
 
 import java.math.BigDecimal;
 import java.util.List;
@@ -31,7 +25,11 @@ public class LoanController {
 
     @PostMapping("/apply")
     @PreAuthorize("hasAnyRole('USER','CUSTOMER')")
-    public ResponseEntity<Object> applyForLoan(@Valid @RequestBody LoanRequestDto loanRequestDto) throws ResourceNotFoundException {
+    public ResponseEntity<Object> applyForLoan(@Valid @RequestBody LoanRequestDto loanRequestDto,
+                                               @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey) throws ResourceNotFoundException {
+        if (idempotencyKey != null && !idempotencyKey.trim().isEmpty()) {
+            return ResponseEntity.ok(loanService.applyForLoanWithIdempotency(loanRequestDto, idempotencyKey));
+        }
         return ResponseEntity.ok(loanService.applyForLoan(loanRequestDto));
     }
 

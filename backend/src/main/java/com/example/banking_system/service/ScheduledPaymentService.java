@@ -60,7 +60,8 @@ public class ScheduledPaymentService {
                                               LocalDate endDate, Integer maxExecutions) {
         User user = cachedDataService.getUserByEmail(userEmail);
 
-        Account fromAccount = cachedDataService.getAccountByNumber(fromAccountNumber);
+        // Use non-cached version for authorization check
+        Account fromAccount = cachedDataService.getAccountByNumberForAuth(fromAccountNumber);
 
         if (!fromAccount.getUser().getId().equals(user.getId())) {
             throw new RuntimeException("Account does not belong to user");
@@ -99,7 +100,8 @@ public class ScheduledPaymentService {
                                                  LocalDate startDate, LocalDate endDate) {
         User user = cachedDataService.getUserByEmail(userEmail);
 
-        Account fromAccount = cachedDataService.getAccountByNumber(fromAccountNumber);
+        // Use non-cached version for authorization check
+        Account fromAccount = cachedDataService.getAccountByNumberForAuth(fromAccountNumber);
 
         if (!fromAccount.getUser().getId().equals(user.getId())) {
             throw new RuntimeException("Account does not belong to user");

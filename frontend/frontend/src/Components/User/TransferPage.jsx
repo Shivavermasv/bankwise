@@ -1,9 +1,10 @@
 import React, { useMemo, useState } from 'react';
-import Navbar from '../Layout/Navbar';
 import { motion } from 'framer-motion';
+import Navbar from '../Layout/Navbar';
 import { transferFunds } from '../../services/transactions';
 import { searchRecipients } from '../../services/accounts';
 import { useTheme } from '../../context/ThemeContext.jsx';
+import { useAuth } from '../../hooks/useAuth';
 import { toDisplayString } from '../../utils';
 import { FaCopy, FaCheck, FaBolt, FaShieldAlt, FaExchangeAlt, FaUserCircle } from 'react-icons/fa';
 import { TransferSuccessModal } from '../Modals/ResultModal';
@@ -31,9 +32,16 @@ const RecipientAvatar = ({ profilePhoto, profilePhotoContentType, name, size = 4
 };
 
 const TransferPage = () => {
-  const user = JSON.parse(sessionStorage.getItem('user')||'{}');
-  const token = user.token;
+  const { user, token, isLoading } = useAuth();
   const { theme } = useTheme();
+  
+  // Redirect to login if not authenticated
+  React.useEffect(() => {
+    if (!isLoading && !user) {
+      window.location.href = '/login';
+    }
+  }, [isLoading, user]);
+  
   const [toAccount, setToAccount] = useState('');
   const [amount, setAmount] = useState('');
   const [status, setStatus] = useState(null);
@@ -49,11 +57,15 @@ const TransferPage = () => {
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [transferDetails, setTransferDetails] = useState(null);
 
-  const valid = toAccount && amount && parseFloat(amount) > 0 && toAccount !== user.accountNumber;
+  const valid = toAccount && amount && parseFloat(amount) > 0 && user && toAccount !== user.accountNumber;
 
   const validate = () => {
     const errors = {};
     if (!toAccount) errors.toAccount = 'Destination account is required';
+    if (!user) {
+      errors.fromAccount = 'User information not loaded';
+      return errors;
+    }
     if (toAccount === user.accountNumber) errors.toAccount = 'Cannot transfer to your own account';
     if (!amount || parseFloat(amount) <= 0) errors.amount = 'Amount must be greater than 0';
     return errors;
@@ -75,7 +87,8 @@ const TransferPage = () => {
         toAccount,
         amount: parseFloat(amount)
       });
-      const resultStatus = typeof resp === 'string' ? resp : 'SUCCESS';
+      // Check the response status properly
+      const resultStatus = resp?.status || (typeof resp === 'string' ? resp : 'SUCCESS');
       setStatus(resultStatus);
       if (resultStatus === 'SUCCESS') {
         // Show success modal with transfer details
@@ -90,6 +103,9 @@ const TransferPage = () => {
         // Reset form
         setToAccount('');
         setAmount('');
+      } else {
+        // Handle non-success status
+        setError(resp?.error || resp?.data || 'Transfer failed');
       }
     } catch(e){
       setError(e.message || 'Transfer failed');
@@ -97,9 +113,10 @@ const TransferPage = () => {
   };
 
   const filteredPeople = useMemo(() => {
+    if (!user) return [];
     if (!search.trim()) return searchResults.filter(p => p.accountNumber !== user.accountNumber);
     return searchResults.filter(p => p.accountNumber !== user.accountNumber);
-  }, [search, searchResults, user.accountNumber]);
+  }, [search, searchResults, user]);
 
   React.useEffect(() => {
     const q = search.trim();
@@ -181,13 +198,23 @@ const TransferPage = () => {
   return (
     <div className={`min-h-screen pt-16 px-4 pb-10 ${theme==='dark'?'bg-slate-900':'bg-[linear-gradient(135deg,#f0fdfa_0%,#e0e7ff_100%)]'}`}>
       <Navbar />
+      
+      {/* Loading spinner while authenticating */}
+      {isLoading && (
+        <div className="flex items-center justify-center min-h-[60vh]">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+        </div>
+      )}
+      
+      {/* Main content - only render when authenticated */}
+      {!isLoading && user && (
       <div className="max-w-6xl mx-auto p-6 grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 space-y-6">
           <motion.form onSubmit={submit} initial={{opacity:0,y:20}} animate={{opacity:1,y:0}} className="bg-white dark:bg-slate-800 rounded-2xl shadow p-6 space-y-4">
             <h2 className="text-xl font-semibold">Transfer Funds</h2>
             <div>
               <label className="text-sm text-slate-600 dark:text-slate-300">From Account</label>
-              <input disabled value={user.accountNumber||''} className="w-full mt-1 p-2 rounded border bg-slate-100 dark:bg-slate-700" />
+              <input disabled value={user?.accountNumber||''} className="w-full mt-1 p-2 rounded border bg-slate-100 dark:bg-slate-700" />
             </div>
             <div>
               <label className="text-sm text-slate-600 dark:text-slate-300">To Account</label>
@@ -320,6 +347,7 @@ const TransferPage = () => {
           </div>
         </div>
       </div>
+      )}
 
       {/* Transfer Success Modal */}
       <TransferSuccessModal

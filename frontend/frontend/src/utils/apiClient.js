@@ -230,7 +230,7 @@ export async function fetchUserDetailsOwned({ token, accountNumber }) {
 export async function listDepositRequests({ token, status = 'PENDING' }) {
   try {
     const data = await apiFetch('/api/account/depositRequests', {
-      method: 'PUT',
+      method: 'GET',
       token,
       query: { status }
     });
