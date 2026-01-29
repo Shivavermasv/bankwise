@@ -2,7 +2,7 @@
 <configuration>
 
     <!-- ABSOLUTE path to Railway volume -->
-    <property name="LOGS_PATH" value="/app/logs/bankwise"/>
+    <property name="LOG_PATH" value="/app/logs/bankwise"/>
 
     <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
         <encoder>
@@ -31,6 +31,23 @@
             <pattern>%d{yyyy-MM-dd HH:mm:ss} %-5level %logger{30} - %msg%n%ex{5}%n</pattern>
         </encoder>
     </appender>
+
+    <!-- API Request logging -->
+    <logger name="com.example.banking_system.config.RequestTimingFilter" level="INFO"/>
+    
+    <!-- Developer Controller logging -->
+    <logger name="com.example.banking_system.controller.DeveloperController" level="INFO"/>
+    
+    <!-- Application errors -->
+    <logger name="com.example.banking_system" level="ERROR"/>
+
+    <!-- Suppress noisy libraries -->
+    <logger name="org.springframework" level="ERROR"/>
+    <logger name="org.hibernate" level="ERROR"/>
+    <logger name="com.zaxxer.hikari" level="ERROR"/>
+    <logger name="io.lettuce" level="ERROR"/>
+    <logger name="org.apache" level="ERROR"/>
+    <logger name="org.springframework.web.socket" level="WARN"/>
 
     <root level="ERROR">
         <appender-ref ref="CONSOLE"/>
