@@ -30,7 +30,7 @@ public class DeveloperController {
     private final SupportTicketRepository ticketRepository;
     private final OtpService otpService;
 
-    @Value("${LOGS_PATH:logs}")
+    @Value("${LOGS_PATH:logs}/bankwise")
     private String logsPath;
 
     @Value("${bankwise.dev.password:}")
