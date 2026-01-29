@@ -30,8 +30,8 @@ public class DeveloperController {
     private final SupportTicketRepository ticketRepository;
     private final OtpService otpService;
 
-    // Match the path in logback-spring.xml
-    @Value("${LOGS_PATH:/app/logs/bankwise}")
+    // Match the path in logback-spring.xml - uses LOGS_PATH env var or /tmp/bankwise-logs fallback
+    @Value("${LOGS_PATH:/tmp/bankwise-logs}")
     private String logsPath;
 
     @Value("${bankwise.dev.password:}")
