@@ -1,54 +1,40 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <configuration>
-    <!-- Log path with subdirectory that app can create -->
-    <property name="LOG_PATH" value="${LOGS_PATH:-logs}/bankwise"/>
 
-    <!-- Console Appender -->
+    <!-- ABSOLUTE path to Railway volume -->
+    <property name="LOG_PATH" value="/app/logs/bankwise"/>
+
     <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
         <encoder>
             <pattern>%d{HH:mm:ss} %-5level %logger{20} - %msg%n</pattern>
         </encoder>
     </appender>
 
-    <!-- Error Log File - Rolling with size limit -->
-    <appender name="ERROR_FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
+    <appender name="ERROR_FILE"
+              class="ch.qos.logback.core.rolling.RollingFileAppender">
+
         <file>${LOG_PATH}/app.log</file>
         <createParentDirectories>true</createParentDirectories>
         <append>true</append>
-        <prudent>false</prudent>
+
         <filter class="ch.qos.logback.classic.filter.ThresholdFilter">
             <level>ERROR</level>
         </filter>
+
         <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
             <fileNamePattern>${LOG_PATH}/app.%d{yyyy-MM-dd}.log</fileNamePattern>
             <maxHistory>7</maxHistory>
             <totalSizeCap>50MB</totalSizeCap>
         </rollingPolicy>
+
         <encoder>
             <pattern>%d{yyyy-MM-dd HH:mm:ss} %-5level %logger{30} - %msg%n%ex{5}%n</pattern>
         </encoder>
     </appender>
 
-    <!-- API Request logging -->
-    <logger name="com.example.banking_system.config.RequestTimingFilter" level="INFO"/>
-    
-    <!-- Developer Controller logging -->
-    <logger name="com.example.banking_system.controller.DeveloperController" level="INFO"/>
-    
-    <!-- Application errors -->
-    <logger name="com.example.banking_system" level="ERROR"/>
-
-    <!-- Suppress noisy libraries -->
-    <logger name="org.springframework" level="ERROR"/>
-    <logger name="org.hibernate" level="ERROR"/>
-    <logger name="com.zaxxer.hikari" level="ERROR"/>
-    <logger name="io.lettuce" level="ERROR"/>
-    <logger name="org.apache" level="ERROR"/>
-    <logger name="org.springframework.web.socket" level="WARN"/>
-
-    <!-- Root logger -->
     <root level="ERROR">
         <appender-ref ref="CONSOLE"/>
         <appender-ref ref="ERROR_FILE"/>
     </root>
+
 </configuration>
