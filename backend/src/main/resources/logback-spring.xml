@@ -1,11 +1,13 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <configuration>
 
-    <property name="LOGS_PATH" value="/app/logs"/>
+    <!-- Railway-safe log path with fallback -->
+    <property name="LOGS_PATH"
+              value="${LOGS_PATH:-/tmp/bankwise-logs}"/>
 
     <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
         <encoder>
-            <pattern>%d{HH:mm:ss} %-5level %logger{20} - %msg%n</pattern>
+            <pattern>%d{HH:mm:ss} %-5level %logger{36} - %msg%n</pattern>
         </encoder>
     </appender>
 
@@ -13,24 +15,23 @@
               class="ch.qos.logback.core.rolling.RollingFileAppender">
 
         <file>${LOGS_PATH}/app.log</file>
-        <append>true</append>
+
+        <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
+            <fileNamePattern>${LOGS_PATH}/app.%d{yyyy-MM-dd}.log</fileNamePattern>
+            <maxHistory>7</maxHistory>
+        </rollingPolicy>
 
         <filter class="ch.qos.logback.classic.filter.ThresholdFilter">
             <level>ERROR</level>
         </filter>
 
-        <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
-            <fileNamePattern>${LOGS_PATH}/app.%d{yyyy-MM-dd}.log</fileNamePattern>
-            <maxHistory>7</maxHistory>
-            <totalSizeCap>50MB</totalSizeCap>
-        </rollingPolicy>
-
         <encoder>
-            <pattern>%d{yyyy-MM-dd HH:mm:ss} %-5level %logger{30} - %msg%n%ex{5}%n</pattern>
+            <pattern>%d{yyyy-MM-dd HH:mm:ss} %-5level %logger - %msg%n%ex%n</pattern>
         </encoder>
     </appender>
 
-    <root level="ERROR">
+    <!-- INFO for console, ERROR still goes to file -->
+    <root level="INFO">
         <appender-ref ref="CONSOLE"/>
         <appender-ref ref="ERROR_FILE"/>
     </root>
