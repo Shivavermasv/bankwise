@@ -122,13 +122,20 @@ public class LoanRequest {
 
     public boolean isFullyPaid() {
         int paid = this.emisPaid != null ? this.emisPaid : 0;
-        int total = this.totalEmis != null ? this.totalEmis : 0;
-        return paid >= total;
+        // Use totalEmis if set, otherwise fall back to tenureInMonths
+        int total = this.totalEmis != null && this.totalEmis > 0 
+            ? this.totalEmis 
+            : (this.tenureInMonths != null ? this.tenureInMonths : 0);
+        // Only mark as fully paid if there are actually EMIs to pay and all are paid
+        return total > 0 && paid >= total;
     }
 
     public int getRemainingEmis() {
         int paid = this.emisPaid != null ? this.emisPaid : 0;
-        int total = this.totalEmis != null ? this.totalEmis : 0;
+        // Use totalEmis if set, otherwise fall back to tenureInMonths
+        int total = this.totalEmis != null && this.totalEmis > 0 
+            ? this.totalEmis 
+            : (this.tenureInMonths != null ? this.tenureInMonths : 0);
         return Math.max(0, total - paid);
     }
 }

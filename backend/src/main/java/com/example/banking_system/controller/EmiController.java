@@ -6,6 +6,7 @@ import com.example.banking_system.repository.LoanRepo;
 import com.example.banking_system.repository.UserRepository;
 import com.example.banking_system.service.EmiSchedulerService;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
@@ -15,6 +16,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+@Slf4j
 @RestController
 @RequestMapping("/api/emi")
 @RequiredArgsConstructor
@@ -32,18 +34,23 @@ public class EmiController {
     public ResponseEntity<?> getEmiSchedule(
             Authentication auth,
             @PathVariable Long loanId) {
+        log.info("Getting EMI schedule for loanId={}", loanId);
         try {
             User user = getCurrentUser(auth);
+            log.debug("User found: {}", user.getEmail());
             verifyLoanOwnership(loanId, user);
+            log.debug("Loan ownership verified");
             
             List<EmiSchedulerService.EmiScheduleItem> schedule = 
                 emiSchedulerService.getEmiSchedule(loanId);
             
+            log.info("EMI schedule generated with {} items", schedule.size());
             return ResponseEntity.ok(Map.of(
                 "loanId", loanId,
                 "schedule", schedule
             ));
         } catch (Exception e) {
+            log.error("Failed to get EMI schedule for loanId={}: {}", loanId, e.getMessage(), e);
             return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
         }
     }
@@ -55,12 +62,18 @@ public class EmiController {
     public ResponseEntity<?> payEmiManually(
             Authentication auth,
             @PathVariable Long loanId) {
+        log.info("Manual EMI payment requested for loanId={}", loanId);
         try {
             User user = getCurrentUser(auth);
+            log.debug("User: {}", user.getEmail());
             verifyLoanOwnership(loanId, user);
+            log.debug("Loan ownership verified");
             
             EmiSchedulerService.EmiPaymentResult result = 
                 emiSchedulerService.payEmiManually(loanId);
+            
+            log.info("EMI payment result for loanId={}: success={}, message={}", 
+                loanId, result.success(), result.message());
             
             if (result.success()) {
                 return ResponseEntity.ok(Map.of(
@@ -74,6 +87,7 @@ public class EmiController {
                 ));
             }
         } catch (Exception e) {
+            log.error("Failed to process EMI payment for loanId={}: {}", loanId, e.getMessage(), e);
             return ResponseEntity.badRequest().body(Map.of(
                 "success", false,
                 "error", e.getMessage()
@@ -154,15 +168,19 @@ public class EmiController {
             
             List<Map<String, Object>> loanDetails = loans.stream()
                 .filter(loan -> loan.getStatus().name().equals("APPROVED"))
-                .map(loan -> Map.<String, Object>of(
-                    "loanId", loan.getId(),
-                    "principalAmount", loan.getAmount(),
-                    "emiAmount", loan.getEmiAmount() != null ? loan.getEmiAmount() : 0,
-                    "remainingEmis", loan.getRemainingEmis(),
-                    "nextEmiDate", loan.getNextEmiDate() != null ? loan.getNextEmiDate().toString() : "N/A",
-                    "autoDebitEnabled", Boolean.TRUE.equals(loan.getAutoDebitEnabled()),
-                    "isFullyPaid", loan.isFullyPaid()
-                ))
+                .map(loan -> {
+                    Map<String, Object> loanMap = new HashMap<>();
+                    loanMap.put("loanId", loan.getId());
+                    loanMap.put("principalAmount", loan.getAmount());
+                    loanMap.put("emiAmount", loan.getEmiAmount() != null ? loan.getEmiAmount() : 0);
+                    loanMap.put("totalEmis", loan.getTotalEmis() != null ? loan.getTotalEmis() : loan.getTenureInMonths());
+                    loanMap.put("emisPaid", loan.getEmisPaid() != null ? loan.getEmisPaid() : 0);
+                    loanMap.put("remainingEmis", loan.getRemainingEmis());
+                    loanMap.put("nextEmiDate", loan.getNextEmiDate() != null ? loan.getNextEmiDate().toString() : null);
+                    loanMap.put("autoDebitEnabled", Boolean.TRUE.equals(loan.getAutoDebitEnabled()));
+                    loanMap.put("isFullyPaid", loan.isFullyPaid());
+                    return loanMap;
+                })
                 .toList();
             
             return ResponseEntity.ok(Map.of(
@@ -216,8 +234,13 @@ public class EmiController {
     }
 
     private void verifyLoanOwnership(Long loanId, User user) {
-        LoanRequest loan = loanRepository.findById(loanId)
+        // Use query that eagerly fetches account and user to avoid lazy loading issues
+        LoanRequest loan = loanRepository.findByIdWithAccountAndUser(loanId)
             .orElseThrow(() -> new RuntimeException("Loan not found"));
+        
+        if (loan.getBankAccount() == null || loan.getBankAccount().getUser() == null) {
+            throw new RuntimeException("Loan account data not found");
+        }
         
         if (!loan.getBankAccount().getUser().getId().equals(user.getId())) {
             throw new RuntimeException("Access denied to this loan");

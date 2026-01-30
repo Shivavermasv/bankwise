@@ -46,11 +46,20 @@ public class ScheduledPaymentController {
             @RequestBody ScheduleTransferRequest request) {
         try {
             String email = auth.getName();
-            Account fromAccount = getAccountForUser(request.fromAccountId(), email);
+            // Support both fromAccountNumber (preferred) and legacy fromAccountId
+            String fromAccountNumber;
+            if (request.fromAccountNumber() != null && !request.fromAccountNumber().isEmpty()) {
+                fromAccountNumber = request.fromAccountNumber();
+            } else if (request.fromAccountId() != null) {
+                Account fromAccount = getAccountForUser(request.fromAccountId(), email);
+                fromAccountNumber = fromAccount.getAccountNumber();
+            } else {
+                throw new RuntimeException("Either fromAccountNumber or fromAccountId is required");
+            }
             
             ScheduledPayment payment = scheduledPaymentService.scheduleTransfer(
                 email,
-                fromAccount.getAccountNumber(),
+                fromAccountNumber,
                 request.toAccountNumber(),
                 request.beneficiaryName(),
                 request.amount(),
@@ -178,6 +187,7 @@ public class ScheduledPaymentController {
 
     public record ScheduleTransferRequest(
         Long fromAccountId,
+        String fromAccountNumber,
         String toAccountNumber,
         String beneficiaryName,
         BigDecimal amount,

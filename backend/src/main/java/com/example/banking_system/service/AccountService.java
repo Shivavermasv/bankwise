@@ -51,6 +51,13 @@ public class AccountService {
     private final UserRepository userRepository;
     private final CachedDataService cachedDataService;
 
+    /**
+     * Get account by account number
+     */
+    public Account getAccountByNumber(String accountNumber) {
+        return cachedDataService.getAccountByNumber(accountNumber);
+    }
+
     public byte[] generatePdfAndSaveKycDetails(KycDetailsRequestDto kycDetailsRequestDto) {
         try {
             log.info("Processing KYC for accountId={}", kycDetailsRequestDto.getAccountId());
@@ -220,13 +227,22 @@ public class AccountService {
 
         account.setVerificationStatus(verificationStatus);
         accountRepository.save(account);
+        
+        // Evict cache to ensure fresh data on next fetch
+        cachedDataService.evictAccountCache(accountNumber);
 
+        // Send notification - handle null user gracefully
         try {
-            notificationService.sendNotification(account.getUser().getEmail(),
-                    "Your KYC verification status has been updated to: " + verificationStatus);
+            User user = account.getUser();
+            if (user != null && user.getEmail() != null) {
+                notificationService.sendNotification(user.getEmail(),
+                        "Your KYC verification status has been updated to: " + verificationStatus);
+            } else {
+                log.warn("Cannot send notification for account {} - user or email is null", accountNumber);
+            }
         } catch (Exception e) {
             log.error("Failed to send notification for account status update", e);
-            throw new RuntimeException("Failed to send notification", e);
+            // Don't throw - notification failure shouldn't break the operation
         }
 
         auditService.record("ACCOUNT_STATUS_UPDATE", "ACCOUNT", accountNumber, verificationStatus.name(),
@@ -244,10 +260,18 @@ public class AccountService {
         auditService.record("ACCOUNT_INTEREST_UPDATE", "ACCOUNT", accountNumber, "SUCCESS",
             "rate=" + newInterestRate);
         
+        // Evict cache to ensure fresh data on next fetch
+        cachedDataService.evictAccountCache(accountNumber);
+        
         // Don't let notification failure break the operation
         try {
-            notificationService.sendNotification(account.getUser().getEmail(),
-                    "The interest rate for your account has been updated to: " + newInterestRate);
+            User user = account.getUser();
+            if (user != null && user.getEmail() != null) {
+                notificationService.sendNotification(user.getEmail(),
+                        "The interest rate for your account has been updated to: " + newInterestRate);
+            } else {
+                log.warn("Cannot send notification for account {} - user or email is null", accountNumber);
+            }
         } catch (Exception e) {
             log.error("Failed to send interest rate update notification for account {}: {}", 
                 accountNumber, e.getMessage());

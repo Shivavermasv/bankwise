@@ -50,11 +50,14 @@ public class BeneficiaryService {
             throw new RuntimeException("Beneficiary already exists");
         }
 
-        // Validate the account exists
-        Account beneficiaryAccount = cachedDataService.getAccountByNumber(beneficiaryAccountNumber);
+        // Validate the account exists - use getAccountByNumberForAuth which eagerly fetches user
+        Account beneficiaryAccount = cachedDataService.getAccountByNumberForAuth(beneficiaryAccountNumber);
 
-        // Get the account holder's name
-        String beneficiaryName = beneficiaryAccount.getUser().getName();
+        // Get the account holder's name (null-safe)
+        String beneficiaryName = "Unknown";
+        if (beneficiaryAccount.getUser() != null) {
+            beneficiaryName = beneficiaryAccount.getUser().getName();
+        }
 
         Beneficiary beneficiary = Beneficiary.builder()
                 .user(user)

@@ -2,6 +2,8 @@ package com.example.banking_system.entity;
 
 import com.example.banking_system.enums.ScheduledPaymentStatus;
 import com.example.banking_system.enums.PaymentFrequency;
+import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -34,10 +36,12 @@ public class ScheduledPayment {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id", nullable = false)
+    @JsonIgnore
     private User user;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "from_account_id", nullable = false)
+    @JsonIgnoreProperties({"hibernateLazyInitializer", "handler", "user", "transactions"})
     private Account fromAccount;
 
     // For transfers to other accounts
@@ -118,10 +122,13 @@ public class ScheduledPayment {
 
         LocalDate next = this.nextExecutionDate;
         switch (frequency) {
+            case DAILY -> next = next.plusDays(1);
             case WEEKLY -> next = next.plusWeeks(1);
+            case BIWEEKLY -> next = next.plusWeeks(2);
             case MONTHLY -> next = next.plusMonths(1);
             case QUARTERLY -> next = next.plusMonths(3);
             case YEARLY -> next = next.plusYears(1);
+            default -> {} // ONE_TIME handled above
         }
 
         // Check if we've reached the end date or max executions

@@ -45,6 +45,16 @@ public interface UserRepository extends JpaRepository<User, String> {
      */
     Optional<User> findByEmail(String email);
 
+    /**
+     * Check if a user exists with the specified email.
+     */
+    boolean existsByEmail(String email);
+
+    /**
+     * Check if a user exists with the specified phone number.
+     */
+    boolean existsByPhone(String phone);
+
     List<User> findByRole(Role role);
 
 

@@ -245,8 +245,12 @@ const LoanCard = ({ loan, isSelected, onSelect, schedule, scheduleLoading, token
     ? Math.ceil((new Date(loan.nextEmiDate) - new Date()) / (1000 * 60 * 60 * 24))
     : null;
 
-  const progressPercentage = loan.totalEmis 
-    ? ((loan.totalEmis - loan.remainingEmis) / loan.totalEmis) * 100 
+  // Safely calculate values with defaults
+  const totalEmis = loan.totalEmis || 0;
+  const remainingEmis = loan.remainingEmis || 0;
+  const emisPaid = totalEmis - remainingEmis;
+  const progressPercentage = totalEmis > 0 
+    ? (emisPaid / totalEmis) * 100 
     : 0;
 
   return (
@@ -326,8 +330,8 @@ const LoanCard = ({ loan, isSelected, onSelect, schedule, scheduleLoading, token
             />
           </div>
           <div className="flex justify-between text-xs text-gray-500 dark:text-gray-400 mt-1">
-            <span>{loan.totalEmis - loan.remainingEmis} EMIs paid</span>
-            <span>{loan.remainingEmis} remaining</span>
+            <span>{emisPaid} EMIs paid</span>
+            <span>{remainingEmis} remaining</span>
           </div>
         </div>
       </div>
@@ -380,7 +384,7 @@ const LoanCard = ({ loan, isSelected, onSelect, schedule, scheduleLoading, token
               </>
             )}
 
-            {loan.isFullyPaid && (
+            {loan.isFullyPaid && totalEmis > 0 && (
               <span className="flex items-center gap-2 px-4 py-2 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 rounded-lg">
                 <FiCheckCircle className="w-5 h-5" />
                 Fully Paid! 🎉

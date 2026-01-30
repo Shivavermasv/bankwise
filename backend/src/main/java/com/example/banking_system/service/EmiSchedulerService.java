@@ -500,18 +500,37 @@ public class EmiSchedulerService {
      */
     @Transactional
     public EmiPaymentResult payEmiManually(Long loanId) {
-        LoanRequest loan = loanRepository.findById(loanId)
+        // Use eager fetch to get loan with account and user
+        LoanRequest loan = loanRepository.findByIdWithAccountAndUser(loanId)
             .orElseThrow(() -> new RuntimeException("Loan not found"));
+        
+        log.info("Manual EMI payment for loanId={}, status={}, nextEmiDate={}, emisPaid={}", 
+            loanId, loan.getStatus(), loan.getNextEmiDate(), loan.getEmisPaid());
         
         if (loan.isFullyPaid()) {
             return new EmiPaymentResult(false, "Loan is already fully paid");
         }
         
-        if (loan.getStatus() != LoanStatus.APPROVED) {
-            return new EmiPaymentResult(false, "Loan is not in approved status");
+        // Allow payment for both APPROVED and ACTIVE status loans
+        if (loan.getStatus() != LoanStatus.APPROVED && loan.getStatus() != LoanStatus.ACTIVE) {
+            return new EmiPaymentResult(false, "Loan is not in approved/active status. Current status: " + loan.getStatus());
         }
         
-        return processEmiPayment(loan, loan.getNextEmiDate());
+        // If nextEmiDate is null, calculate it based on approval date
+        LocalDate emiDate = loan.getNextEmiDate();
+        if (emiDate == null) {
+            log.warn("nextEmiDate is null for loan {}, calculating from approval date", loanId);
+            if (loan.getApprovalDate() != null) {
+                emiDate = loan.getApprovalDate().plusMonths(1);
+                loan.setNextEmiDate(emiDate);
+            } else {
+                emiDate = LocalDate.now();
+                loan.setNextEmiDate(emiDate);
+            }
+            loanRepository.save(loan);
+        }
+        
+        return processEmiPayment(loan, emiDate);
     }
 
     /**
@@ -557,8 +576,20 @@ public class EmiSchedulerService {
         if (loan.getAmount() == null) {
             throw new RuntimeException("Loan amount is not set");
         }
-        if (loan.getTotalEmis() == null || loan.getTotalEmis() <= 0) {
+        
+        // Use totalEmis if set, otherwise fall back to tenureInMonths
+        int effectiveTotalEmis = (loan.getTotalEmis() != null && loan.getTotalEmis() > 0) 
+            ? loan.getTotalEmis() 
+            : (loan.getTenureInMonths() != null ? loan.getTenureInMonths() : 0);
+        
+        if (effectiveTotalEmis <= 0) {
             throw new RuntimeException("Invalid loan tenure");
+        }
+        
+        // Update totalEmis if it wasn't set (for backward compatibility)
+        if (loan.getTotalEmis() == null || loan.getTotalEmis() <= 0) {
+            loan.setTotalEmis(effectiveTotalEmis);
+            loanRepository.save(loan);
         }
         
         return generateEmiSchedule(loan);

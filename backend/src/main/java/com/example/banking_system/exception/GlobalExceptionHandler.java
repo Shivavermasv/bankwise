@@ -14,6 +14,7 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 
 import java.time.LocalDateTime;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 @ControllerAdvice
@@ -28,6 +29,23 @@ public class GlobalExceptionHandler {
                 .status(status.value())
                 .build();
         return new ResponseEntity<>(error, status);
+    }
+
+    private ResponseEntity<Map<String, Object>> buildWithCode(HttpStatus status, String code, String message, HttpServletRequest request) {
+        Map<String, Object> error = Map.of(
+                "errorCode", code,
+                "message", message,
+                "path", request.getRequestURI(),
+                "timestamp", LocalDateTime.now().toString(),
+                "status", status.value()
+        );
+        return new ResponseEntity<>(error, status);
+    }
+
+    @ExceptionHandler(RegistrationException.class)
+    public ResponseEntity<Map<String, Object>> handleRegistration(RegistrationException ex, HttpServletRequest request) {
+        log.warn("Registration error: {} - {}", ex.getErrorCode(), ex.getMessage());
+        return buildWithCode(HttpStatus.BAD_REQUEST, ex.getErrorCode(), ex.getMessage(), request);
     }
 
     @ExceptionHandler(KycProcessingException.class)

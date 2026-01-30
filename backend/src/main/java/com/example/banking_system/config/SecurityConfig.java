@@ -65,6 +65,8 @@ public class SecurityConfig {
         DaoAuthenticationProvider provider = new DaoAuthenticationProvider();
         provider.setUserDetailsService(userDetailsService);
         provider.setPasswordEncoder(passwordEncoder());
+        // Allow UsernameNotFoundException to propagate (not hidden as BadCredentials)
+        provider.setHideUserNotFoundExceptions(false);
         return provider;
     }
 
@@ -83,6 +85,9 @@ public class SecurityConfig {
                                 "/api/auth/register",
                                 "/api/create",
                                 "/api/developer/login",
+                                "/api/password/reset-request",
+                                "/api/password/reset-confirm",
+                                "/api/password/resend-otp",
                                 "/v3/api-docs/**",
                                 "/swagger-ui/**",
                                 "/swagger-ui.html",

@@ -52,6 +52,29 @@ public class OtpService {
         log.info("OTP sent to email={}", email);
     }
 
+    /**
+     * Send OTP specifically for password reset
+     */
+    public void sendPasswordResetOtp(String email, String otp) {
+        if (skipOtp) {
+            log.info("Dev mode: Skipping password reset OTP email for email={}", email);
+            return;
+        }
+        String subject = "Password Reset - Bankwise";
+        String body = String.format(
+            "Hello,\n\n" +
+            "You have requested to reset your password for your Bankwise account.\n\n" +
+            "Your verification code is: %s\n\n" +
+            "This code will expire in 10 minutes.\n\n" +
+            "If you did not request this password reset, please ignore this email or contact support.\n\n" +
+            "Best regards,\n" +
+            "The Bankwise Team",
+            otp
+        );
+        emailService.sendEmail(email, subject, body);
+        log.info("Password reset OTP sent to email={}", email);
+    }
+
     public boolean verifyOtp(String email, String userOtp) {
         // Dev mode: skip OTP verification
         if (skipOtp) {

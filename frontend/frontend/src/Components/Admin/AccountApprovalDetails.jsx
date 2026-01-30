@@ -162,27 +162,27 @@ const AccountApprovalDetails = () => {
             <h2 className="text-lg font-semibold text-slate-800 dark:text-white mb-4">Profile Summary</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
               <div>
-                <div className="text-slate-500">Name</div>
+                <div className="text-slate-600 dark:text-slate-400">Name</div>
                 <div className="font-semibold text-slate-800 dark:text-white">{data.userName || "—"}</div>
               </div>
               <div>
-                <div className="text-slate-500">Email</div>
+                <div className="text-slate-600 dark:text-slate-400">Email</div>
                 <div className="font-semibold text-slate-800 dark:text-white">{data.userEmail || "—"}</div>
               </div>
               <div>
-                <div className="text-slate-500">Phone</div>
+                <div className="text-slate-600 dark:text-slate-400">Phone</div>
                 <div className="font-semibold text-slate-800 dark:text-white">{data.phone || "—"}</div>
               </div>
               <div>
-                <div className="text-slate-500">Account Type</div>
+                <div className="text-slate-600 dark:text-slate-400">Account Type</div>
                 <div className="font-semibold text-slate-800 dark:text-white">{data.accountType || "—"}</div>
               </div>
               <div>
-                <div className="text-slate-500">Balance</div>
+                <div className="text-slate-600 dark:text-slate-400">Balance</div>
                 <div className="font-semibold text-slate-800 dark:text-white">₹{Number(data.balance || 0).toLocaleString()}</div>
               </div>
               <div>
-                <div className="text-slate-500">Verification</div>
+                <div className="text-slate-600 dark:text-slate-400">Verification</div>
                 <span className="inline-flex px-2 py-1 rounded-full text-xs font-semibold bg-amber-100 text-amber-700">{data.verificationStatus || "PENDING"}</span>
               </div>
             </div>
@@ -204,11 +204,11 @@ const AccountApprovalDetails = () => {
                   <button
                     key={item.type}
                     onClick={() => setActiveDoc(item)}
-                    className="text-left rounded-xl border border-slate-200/60 dark:border-slate-700/60 bg-white/70 dark:bg-slate-900/40 p-4 hover:shadow-sm transition"
+                    className="text-left rounded-xl border border-slate-200/60 dark:border-slate-700/60 bg-white dark:bg-slate-900/40 p-4 hover:shadow-md transition"
                   >
                     <img src={docPlaceholder} alt={item.label} className="w-full h-40 object-cover rounded-lg" />
-                    <div className="mt-2 text-xs text-slate-500">{item.label}</div>
-                    <div className="text-xs text-slate-600 dark:text-slate-300">{item.number}</div>
+                    <div className="mt-2 text-xs text-slate-600 dark:text-slate-400 font-medium">{item.label}</div>
+                    <div className="text-xs text-slate-700 dark:text-slate-300">{item.number}</div>
                   </button>
                 ))}
               </div>
@@ -220,8 +220,8 @@ const AccountApprovalDetails = () => {
               <h3 className="text-lg font-semibold text-slate-800 dark:text-white mb-4">Account Analytics</h3>
               <div className="grid grid-cols-2 gap-3 text-sm">
                 {analytics.map((item) => (
-                  <div key={item.label} className="rounded-xl bg-slate-50 dark:bg-slate-900/40 border border-slate-200/60 dark:border-slate-700/60 p-3">
-                    <div className="text-xs text-slate-500">{item.label}</div>
+                  <div key={item.label} className="rounded-xl bg-slate-100 dark:bg-slate-900/40 border border-slate-200/60 dark:border-slate-700/60 p-3">
+                    <div className="text-xs text-slate-600 dark:text-slate-400">{item.label}</div>
                     <div className="font-semibold text-slate-800 dark:text-white">{item.value}</div>
                   </div>
                 ))}

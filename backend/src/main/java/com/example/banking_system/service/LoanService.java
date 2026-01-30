@@ -234,8 +234,10 @@ public class LoanService {
             int tenureInMonths = loan.getTenureInMonths() != null ? loan.getTenureInMonths() : 12;
             BigDecimal emiAmount = calculateMonthlyEmi(loan.getAmount(), interestRate, tenureInMonths);
             loan.setEmiAmount(emiAmount);
+            loan.setTotalEmis(tenureInMonths); // Set total EMIs = tenure in months
             loan.setRemainingPrincipal(loan.getAmount());
             loan.setEmisPaid(0); // Initialize EMI counter
+            loan.calculateNextEmiDate(); // Calculate first EMI date
             log.info("EMI calculated for loan {}: ₹{} for {} months at {}% interest", 
                     loanId, emiAmount, tenureInMonths, interestRate);
 

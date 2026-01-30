@@ -352,17 +352,17 @@ const AdminHome = () => {
                 {/* Key Metrics Grid (aligned with backend analytics payload) */}
                 <div className="grid gap-5 md:gap-6 mb-8 sm:grid-cols-2 lg:grid-cols-3">
                   <div className="rounded-xl p-5 border bg-gradient-to-br from-blue-50 to-white dark:from-blue-500/10 dark:to-slate-800 border-blue-200/40 dark:border-blue-500/30">
-                    <div className="text-sm text-slate-500 dark:text-slate-300 mb-1">Total Accounts</div>
+                    <div className="text-sm text-slate-600 dark:text-slate-300 mb-1">Total Accounts</div>
                     <div className="text-3xl font-bold text-blue-600 dark:text-blue-400 tracking-tight">{dashboardData.analytics.totalAccounts}</div>
                     <div className="text-xs text-blue-600 dark:text-blue-300 mt-1 font-medium">Users: {dashboardData.analytics.totalUsers}</div>
                   </div>
                   <div className="rounded-xl p-5 border bg-gradient-to-br from-emerald-50 to-white dark:from-emerald-500/10 dark:to-slate-800 border-emerald-200/50 dark:border-emerald-500/30">
-                    <div className="text-sm text-slate-500 dark:text-slate-300 mb-1">Approved Deposit Amount</div>
+                    <div className="text-sm text-slate-600 dark:text-slate-300 mb-1">Approved Deposit Amount</div>
                     <div className="text-3xl font-bold text-emerald-600 dark:text-emerald-400 tracking-tight">₹{formatNumber(dashboardData.analytics.totalApprovedDepositAmount)}</div>
                     <div className="text-xs text-emerald-600 dark:text-emerald-400 mt-1 font-medium">Approved Deposits: {dashboardData.analytics.approvedDeposits}</div>
                   </div>
                   <div className="rounded-xl p-5 border bg-gradient-to-br from-amber-50 to-white dark:from-amber-500/10 dark:to-slate-800 border-amber-200/50 dark:border-amber-500/30">
-                    <div className="text-sm text-slate-500 dark:text-slate-300 mb-1">Successful Tx Volume</div>
+                    <div className="text-sm text-slate-600 dark:text-slate-300 mb-1">Successful Tx Volume</div>
                     <div className="text-3xl font-bold text-amber-600 dark:text-amber-400 tracking-tight">₹{formatNumber(dashboardData.analytics.totalSuccessfulTransactionVolume)}</div>
                     <div className="text-xs text-amber-600 dark:text-amber-400 mt-1 font-medium">Active Users: {dashboardData.analytics.activeUsers}</div>
                   </div>
@@ -378,19 +378,19 @@ const AdminHome = () => {
                   <div className="rounded-2xl p-6 bg-white/90 dark:bg-slate-800/70 border border-slate-200/60 dark:border-slate-700/60">
                     <h5 className="text-base font-semibold text-slate-800 dark:text-slate-100 mb-4">Loan Requests</h5>
                     <div className="space-y-3 text-sm">
-                      <div className="flex justify-between"><span className="text-slate-500">Total</span><span className="font-semibold">{dashboardData.analytics.totalLoans}</span></div>
-                      <div className="flex justify-between"><span className="text-slate-500">Active</span><span className="font-semibold text-blue-600 dark:text-blue-400">{dashboardData.analytics.activeLoans}</span></div>
-                      <div className="flex justify-between"><span className="text-slate-500">Pending</span><span className="font-semibold text-amber-500">{dashboardData.analytics.pendingLoans}</span></div>
-                      <div className="flex justify-between"><span className="text-slate-500">Rejected</span><span className="font-semibold text-rose-500">{dashboardData.analytics.rejectedLoans}</span></div>
+                      <div className="flex justify-between"><span className="text-slate-600 dark:text-slate-400">Total</span><span className="font-semibold">{dashboardData.analytics.totalLoans}</span></div>
+                      <div className="flex justify-between"><span className="text-slate-600 dark:text-slate-400">Active</span><span className="font-semibold text-blue-600 dark:text-blue-400">{dashboardData.analytics.activeLoans}</span></div>
+                      <div className="flex justify-between"><span className="text-slate-600 dark:text-slate-400">Pending</span><span className="font-semibold text-amber-500">{dashboardData.analytics.pendingLoans}</span></div>
+                      <div className="flex justify-between"><span className="text-slate-600 dark:text-slate-400">Rejected</span><span className="font-semibold text-rose-500">{dashboardData.analytics.rejectedLoans}</span></div>
                     </div>
                   </div>
                   <div className="rounded-2xl p-6 bg-white/90 dark:bg-slate-800/70 border border-slate-200/60 dark:border-slate-700/60">
                     <h5 className="text-base font-semibold text-slate-800 dark:text-slate-100 mb-4">Deposit Requests</h5>
                     <div className="space-y-3 text-sm">
-                      <div className="flex justify-between"><span className="text-slate-500">Total</span><span className="font-semibold">{dashboardData.analytics.totalDepositRequests}</span></div>
-                      <div className="flex justify-between"><span className="text-slate-500">Pending</span><span className="font-semibold text-amber-500">{dashboardData.analytics.pendingDeposits}</span></div>
-                      <div className="flex justify-between"><span className="text-slate-500">Approved</span><span className="font-semibold text-emerald-600">{dashboardData.analytics.approvedDeposits}</span></div>
-                      <div className="flex justify-between"><span className="text-slate-500">Rejected</span><span className="font-semibold text-rose-500">{dashboardData.analytics.rejectedDeposits}</span></div>
+                      <div className="flex justify-between"><span className="text-slate-600 dark:text-slate-400">Total</span><span className="font-semibold">{dashboardData.analytics.totalDepositRequests}</span></div>
+                      <div className="flex justify-between"><span className="text-slate-600 dark:text-slate-400">Pending</span><span className="font-semibold text-amber-500">{dashboardData.analytics.pendingDeposits}</span></div>
+                      <div className="flex justify-between"><span className="text-slate-600 dark:text-slate-400">Approved</span><span className="font-semibold text-emerald-600">{dashboardData.analytics.approvedDeposits}</span></div>
+                      <div className="flex justify-between"><span className="text-slate-600 dark:text-slate-400">Rejected</span><span className="font-semibold text-rose-500">{dashboardData.analytics.rejectedDeposits}</span></div>
                     </div>
                   </div>
                 </div>
@@ -399,15 +399,15 @@ const AdminHome = () => {
                   <div className="text-[11px] text-slate-500 dark:text-slate-400 mb-4">Last Updated: {new Date(dashboardData.analytics.generatedAt).toLocaleString()}</div>
                 )}
                 {/* Monthly Performance */}
-                <div className="rounded-2xl bg-slate-50/70 dark:bg-slate-900/40 p-6 mb-6 border border-slate-200/60 dark:border-slate-700/60">
+                <div className="rounded-2xl bg-slate-100/70 dark:bg-slate-900/40 p-6 mb-6 border border-slate-200/60 dark:border-slate-700/60">
                   <h4 className="text-lg font-semibold text-slate-800 dark:text-slate-100 mb-5">Monthly Performance</h4>
                   <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6">
                     {(dashboardData.analytics.monthlyStats || []).map(month => (
                       <div key={month.month} className="bg-white dark:bg-slate-800/70 rounded-xl p-4 text-center border border-slate-200/70 dark:border-slate-700/60">
                         <div className="text-sm font-semibold text-slate-700 dark:text-slate-200 mb-2 tracking-tight">{month.month}</div>
-                        <div className="text-[11px] text-slate-500 dark:text-slate-400 mb-1">Deposits: ₹{(month.deposits / 1000).toFixed(0)}K</div>
-                        <div className="text-[11px] text-slate-500 dark:text-slate-400 mb-1">Loans: ₹{(month.loans / 1000).toFixed(0)}K</div>
-                        <div className="text-[11px] text-slate-500 dark:text-slate-400">Users: +{month.users}</div>
+                        <div className="text-[11px] text-slate-600 dark:text-slate-400 mb-1">Deposits: ₹{(month.deposits / 1000).toFixed(0)}K</div>
+                        <div className="text-[11px] text-slate-600 dark:text-slate-400 mb-1">Loans: ₹{(month.loans / 1000).toFixed(0)}K</div>
+                        <div className="text-[11px] text-slate-600 dark:text-slate-400">Users: +{month.users}</div>
                       </div>
                     ))}
                   </div>

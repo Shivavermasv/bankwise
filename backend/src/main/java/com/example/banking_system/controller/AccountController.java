@@ -129,6 +129,24 @@ public class AccountController {
         return ResponseEntity.ok(depositService.createDepositRequest(depositRequestDto));
     }
 
+    @GetMapping("interestRate")
+    @PreAuthorize("hasAnyRole('ADMIN','MANAGER','USER','CUSTOMER')")
+    public ResponseEntity<Object> getInterestRate(@RequestParam String accountNumber) {
+        try {
+            var account = accountService.getAccountByNumber(accountNumber);
+            if (account == null) {
+                return ResponseEntity.notFound().build();
+            }
+            return ResponseEntity.ok(Map.of(
+                "accountNumber", accountNumber,
+                "interestRate", account.getInterestRate(),
+                "accountType", account.getAccountType()
+            ));
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        }
+    }
+
     @PutMapping("interestRate")
     @PreAuthorize("hasAnyRole('ADMIN','MANAGER')")
     public ResponseEntity<Object> updateInterestRate(

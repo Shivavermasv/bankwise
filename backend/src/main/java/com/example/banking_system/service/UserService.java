@@ -6,6 +6,7 @@ import com.example.banking_system.entity.User;
 import com.example.banking_system.enums.AccountType;
 import com.example.banking_system.enums.Role;
 import com.example.banking_system.exception.BusinessRuleViolationException;
+import com.example.banking_system.exception.RegistrationException;
 import com.example.banking_system.repository.AccountRepository;
 import com.example.banking_system.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
@@ -51,10 +52,25 @@ public class UserService {
     public Object createUser(CreateRequestDto createRequestDto) {
         log.info("Creating user with email={} role={}", createRequestDto.getEmail(), createRequestDto.getRole());
 
+        // Check for duplicate email
+        if (userRepository.existsByEmail(createRequestDto.getEmail())) {
+            log.warn("Registration attempt with existing email: {}", createRequestDto.getEmail());
+            throw new RegistrationException(RegistrationException.DUPLICATE_EMAIL, 
+                "An account with this email already exists. Please login instead.");
+        }
+
+        // Check for duplicate phone
+        if (userRepository.existsByPhone(createRequestDto.getPhoneNumber())) {
+            log.warn("Registration attempt with existing phone: {}", createRequestDto.getPhoneNumber());
+            throw new RegistrationException(RegistrationException.DUPLICATE_PHONE, 
+                "This phone number is already registered with another account.");
+        }
+
         // Validate admin registration code
         if (Role.ADMIN.equals(createRequestDto.getRole())) {
             if (createRequestDto.getAdminCode() == null || !adminRegistrationCode.equals(createRequestDto.getAdminCode())) {
-                throw new BusinessRuleViolationException("Invalid admin registration code");
+                throw new RegistrationException(RegistrationException.INVALID_ADMIN_CODE,
+                    "Invalid admin registration code");
             }
         }
 
@@ -73,7 +89,8 @@ public class UserService {
             try {
                 byte[] photoBytes = Base64.getDecoder().decode(createRequestDto.getProfilePhoto());
                 if (photoBytes.length > MAX_PROFILE_PHOTO_SIZE) {
-                    throw new BusinessRuleViolationException("Profile photo must be less than 500KB");
+                    throw new RegistrationException(RegistrationException.PHOTO_TOO_LARGE,
+                        "Profile photo must be less than 500KB");
                 }
                 user.setProfilePhoto(photoBytes);
                 user.setProfilePhotoContentType(createRequestDto.getProfilePhotoContentType());
@@ -86,19 +103,26 @@ public class UserService {
         User savedUser;
         if (Role.USER.equals(user.getRole()) || Role.CUSTOMER.equals(user.getRole())) {
             if (createRequestDto.getAccountType() == null || createRequestDto.getAccountType().isBlank()) {
-                throw new IllegalArgumentException("Account type is required");
+                throw new RegistrationException(RegistrationException.ACCOUNT_TYPE_REQUIRED,
+                    "Account type is required for user registration");
             }
             Account account = new Account();
             account.setBalance(BigDecimal.valueOf(5000));
             account.setUser(user);
-            account.setAccountType(AccountType.valueOf(createRequestDto.getAccountType()));
+            try {
+                account.setAccountType(AccountType.valueOf(createRequestDto.getAccountType()));
+            } catch (IllegalArgumentException e) {
+                throw new RegistrationException(RegistrationException.INVALID_ACCOUNT_TYPE,
+                    "Invalid account type. Must be SAVINGS or CURRENT.");
+            }
             if(createRequestDto.getAccountType().equals("SAVINGS")){
                 account.setInterestRate(0.08);
             }
             else if(createRequestDto.getAccountType().equals("CURRENT")){
                 account.setInterestRate(0.00);
             } else {
-                throw new IllegalArgumentException("Invalid account type");
+                throw new RegistrationException(RegistrationException.INVALID_ACCOUNT_TYPE,
+                    "Invalid account type. Must be SAVINGS or CURRENT.");
             }
 
             accountRepository.save(account);

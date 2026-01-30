@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { FaEye, FaEyeSlash, FaUniversity, FaShieldAlt, FaCreditCard, FaChartLine, FaLock, FaWallet } from "react-icons/fa";
+import { FaEye, FaEyeSlash, FaUniversity, FaShieldAlt, FaCreditCard, FaChartLine, FaLock, FaWallet, FaExclamationTriangle, FaTimes, FaUserPlus, FaKey } from "react-icons/fa";
 import { motion, AnimatePresence } from "framer-motion";
 import { loginWithCredentials as apiLogin, verifyOtpAndFetchToken as apiVerifyOtp, developerLogin } from "../../utils/authApi";
 import { toDisplayString } from "../../utils";
@@ -77,6 +77,7 @@ const LoginPage = () => {
   const [otpError, setOtpError] = useState("");
   const [otpTimer, setOtpTimer] = useState(0);
   const [error, setError] = useState("");
+  const [errorModal, setErrorModal] = useState(null); // { type, title, message, actions }
   const navigate = useNavigate();
   
   // Create refs properly outside of any callback
@@ -84,6 +85,33 @@ const LoginPage = () => {
     useRef(null), useRef(null), useRef(null),
     useRef(null), useRef(null), useRef(null)
   ];
+
+  // Map error codes to user-friendly modal content
+  const getLoginErrorModal = (errorCode, message) => {
+    switch (errorCode) {
+      case 'ACCOUNT_NOT_FOUND':
+        return {
+          type: 'warning',
+          title: 'Account Not Found',
+          message: 'No account exists with this email address. Would you like to create a new account?',
+          showRegisterButton: true
+        };
+      case 'INVALID_CREDENTIALS':
+        return {
+          type: 'error',
+          title: 'Incorrect Password',
+          message: 'The password you entered is incorrect. Please try again or reset your password.',
+          showForgotPassword: true
+        };
+      default:
+        return {
+          type: 'error',
+          title: 'Login Failed',
+          message: message || 'Authentication failed. Please check your credentials.',
+          showForgotPassword: false
+        };
+    }
+  };
 
   // Check if user is already logged in and redirect
   useEffect(() => {
@@ -176,7 +204,15 @@ const LoginPage = () => {
       }
       setError('Unexpected response.');
     } catch (err) {
-      setError(err.message || 'Network error. Try again.');
+      // Check if it's a structured error with errorCode
+      const errorCode = err?.errorCode;
+      const message = err?.message || 'Network error. Try again.';
+      
+      if (errorCode) {
+        setErrorModal(getLoginErrorModal(errorCode, message));
+      } else {
+        setError(message);
+      }
     } finally {
       // global loader handled centrally
     }
@@ -232,8 +268,92 @@ const LoginPage = () => {
     exit: { opacity: 0, y: -40 },
   };
 
+  // Error Modal Component
+  const ErrorModal = () => {
+    if (!errorModal) return null;
+
+    return (
+      <AnimatePresence>
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+          onClick={() => setErrorModal(null)}
+        >
+          <motion.div
+            initial={{ scale: 0.9, opacity: 0, y: 20 }}
+            animate={{ scale: 1, opacity: 1, y: 0 }}
+            exit={{ scale: 0.9, opacity: 0, y: 20 }}
+            className="bg-white dark:bg-slate-800 rounded-2xl p-6 max-w-md w-full shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="text-center">
+              <div className={`w-16 h-16 mx-auto rounded-full flex items-center justify-center mb-4 ${
+                errorModal.type === 'warning' 
+                  ? 'bg-amber-100 dark:bg-amber-900/30' 
+                  : 'bg-red-100 dark:bg-red-900/30'
+              }`}>
+                <FaExclamationTriangle className={`text-3xl ${
+                  errorModal.type === 'warning' 
+                    ? 'text-amber-500' 
+                    : 'text-red-500'
+                }`} />
+              </div>
+              
+              <h3 className="text-xl font-bold text-slate-800 dark:text-white mb-2">
+                {errorModal.title}
+              </h3>
+              
+              <p className="text-slate-600 dark:text-slate-300 mb-6">
+                {errorModal.message}
+              </p>
+              
+              <div className="flex flex-col gap-3">
+                {errorModal.showRegisterButton && (
+                  <motion.button
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                    onClick={() => navigate('/register')}
+                    className="flex items-center justify-center gap-2 w-full px-6 py-3 bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white font-semibold rounded-xl shadow-lg"
+                  >
+                    <FaUserPlus />
+                    Create New Account
+                  </motion.button>
+                )}
+                {errorModal.showForgotPassword && (
+                  <motion.button
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                    onClick={() => navigate('/forgot-password')}
+                    className="flex items-center justify-center gap-2 w-full px-6 py-3 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white font-semibold rounded-xl shadow-lg"
+                  >
+                    <FaKey />
+                    Reset Password
+                  </motion.button>
+                )}
+                <motion.button
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  onClick={() => setErrorModal(null)}
+                  className="flex items-center justify-center gap-2 w-full px-6 py-3 bg-slate-200 dark:bg-slate-700 text-slate-800 dark:text-white hover:bg-slate-300 dark:hover:bg-slate-600 font-semibold rounded-xl"
+                >
+                  <FaTimes />
+                  Try Again
+                </motion.button>
+              </div>
+            </div>
+          </motion.div>
+        </motion.div>
+      </AnimatePresence>
+    );
+  };
+
   return (
     <div className="min-h-screen w-full overflow-y-auto bg-gradient-to-br from-indigo-50 via-blue-50 to-emerald-50 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900 relative">
+      {/* Error Modal */}
+      <ErrorModal />
+      
       {/* Background Pattern */}
       <div className="absolute inset-0 opacity-30 dark:opacity-10 pointer-events-none" style={{
         backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%233b82f6' fill-opacity='0.15'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")`,
@@ -376,16 +496,27 @@ const LoginPage = () => {
               </button>
               
               {!showDevLogin && (
-                <p className="text-center text-sm text-slate-500 dark:text-slate-400">
-                  Don't have an account?{" "}
-                  <button
-                    type="button"
-                    onClick={() => navigate("/register")}
-                    className="text-blue-600 dark:text-blue-400 hover:underline font-medium"
-                  >
-                    Register
-                  </button>
-                </p>
+                <>
+                  <div className="text-center">
+                    <button
+                      type="button"
+                      onClick={() => navigate("/forgot-password")}
+                      className="text-sm text-blue-600 dark:text-blue-400 hover:underline"
+                    >
+                      Forgot Password?
+                    </button>
+                  </div>
+                  <p className="text-center text-sm text-slate-500 dark:text-slate-400">
+                    Don't have an account?{" "}
+                    <button
+                      type="button"
+                      onClick={() => navigate("/register")}
+                      className="text-blue-600 dark:text-blue-400 hover:underline font-medium"
+                    >
+                      Register
+                    </button>
+                  </p>
+                </>
               )}
             </motion.form>
           )}

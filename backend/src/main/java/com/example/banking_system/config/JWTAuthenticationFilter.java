@@ -13,10 +13,12 @@ import lombok.Getter;
 import lombok.Setter;
 import org.springframework.http.MediaType;
 import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.security.core.userdetails.UsernameNotFoundException;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -49,6 +51,9 @@ public class JWTAuthenticationFilter extends org.springframework.security.web.au
                 request.setAttribute("devPassword", creds.getDevPassword());
             }
             
+            // Store username for error handling
+            request.setAttribute("attemptedUsername", creds.getUsername());
+            
             return authenticationManager.authenticate(
                     new UsernamePasswordAuthenticationToken(
                             creds.getUsername(),
@@ -58,6 +63,33 @@ public class JWTAuthenticationFilter extends org.springframework.security.web.au
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
+    }
+
+    @Override
+    protected void unsuccessfulAuthentication(HttpServletRequest request, HttpServletResponse response,
+                                              AuthenticationException failed) throws IOException {
+        response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+        response.setContentType(MediaType.APPLICATION_JSON_VALUE);
+        
+        Map<String, Object> errorBody = new HashMap<>();
+        errorBody.put("status", 401);
+        errorBody.put("path", request.getRequestURI());
+        errorBody.put("timestamp", java.time.LocalDateTime.now().toString());
+        
+        // Determine specific error type
+        if (failed instanceof UsernameNotFoundException || 
+            (failed.getCause() != null && failed.getCause() instanceof UsernameNotFoundException)) {
+            errorBody.put("errorCode", "ACCOUNT_NOT_FOUND");
+            errorBody.put("message", "No account found with this email address. Please register first.");
+        } else if (failed instanceof BadCredentialsException) {
+            errorBody.put("errorCode", "INVALID_CREDENTIALS");
+            errorBody.put("message", "Incorrect password. Please try again or reset your password.");
+        } else {
+            errorBody.put("errorCode", "AUTH_FAILED");
+            errorBody.put("message", "Authentication failed. Please check your credentials.");
+        }
+        
+        new ObjectMapper().writeValue(response.getOutputStream(), errorBody);
     }
 
     @Override

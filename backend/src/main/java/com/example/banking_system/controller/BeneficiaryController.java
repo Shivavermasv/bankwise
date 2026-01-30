@@ -3,6 +3,7 @@ package com.example.banking_system.controller;
 import com.example.banking_system.entity.Beneficiary;
 import com.example.banking_system.service.BeneficiaryService;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
@@ -11,6 +12,7 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 import java.util.Map;
 
+@Slf4j
 @RestController
 @RequestMapping("/api/beneficiaries")
 @RequiredArgsConstructor
@@ -45,6 +47,8 @@ public class BeneficiaryController {
             @RequestBody BeneficiaryRequest request) {
         try {
             String email = auth.getName();
+            log.info("Adding beneficiary: accountNumber={}, nickname={} for user={}", 
+                request.accountNumber(), request.nickname(), email);
             Beneficiary beneficiary = beneficiaryService.addBeneficiary(
                 email,
                 request.accountNumber(),
@@ -52,6 +56,7 @@ public class BeneficiaryController {
             );
             return ResponseEntity.ok(beneficiary);
         } catch (Exception e) {
+            log.error("Failed to add beneficiary: {}", e.getMessage(), e);
             return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
         }
     }

@@ -1,11 +1,11 @@
 import React, { useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import Lottie from "lottie-react";
 import registerAnimation from "../../assets/registerAnimation.json";
 import successAnimation from "../../assets/successAnimation.json";
 import { registerUser } from "../../services/auth";
-import { FaUserCircle, FaCamera, FaUniversity, FaShieldAlt, FaCreditCard, FaChartLine } from "react-icons/fa";
+import { FaUserCircle, FaCamera, FaUniversity, FaShieldAlt, FaCreditCard, FaChartLine, FaExclamationTriangle, FaTimes, FaSignInAlt } from "react-icons/fa";
 
 const MAX_PHOTO_SIZE = 500 * 1024; // 500KB
 
@@ -68,8 +68,50 @@ const RegisterPage = () => {
   const [showSuccessAnim, setShowSuccessAnim] = useState(false);
   const [profilePhoto, setProfilePhoto] = useState(null);
   const [profilePhotoPreview, setProfilePhotoPreview] = useState(null);
+  const [errorModal, setErrorModal] = useState(null); // { type, title, message, showLoginButton }
   const fileInputRef = useRef(null);
   const navigate = useNavigate();
+
+  // Map error codes to user-friendly modal content
+  const getErrorModalContent = (errorCode, message) => {
+    switch (errorCode) {
+      case 'DUPLICATE_EMAIL':
+        return {
+          type: 'warning',
+          title: 'Account Already Exists',
+          message: 'An account with this email address is already registered. Would you like to login instead?',
+          showLoginButton: true
+        };
+      case 'DUPLICATE_PHONE':
+        return {
+          type: 'error',
+          title: 'Phone Number In Use',
+          message: 'This phone number is already registered with another account. Please use a different phone number.',
+          showLoginButton: false
+        };
+      case 'INVALID_ADMIN_CODE':
+        return {
+          type: 'error',
+          title: 'Invalid Admin Code',
+          message: 'The admin registration code you entered is incorrect. Please contact your system administrator.',
+          showLoginButton: false
+        };
+      case 'PHOTO_TOO_LARGE':
+        return {
+          type: 'error',
+          title: 'Photo Too Large',
+          message: 'Profile photo must be less than 500KB. Please choose a smaller image.',
+          showLoginButton: false
+        };
+      default:
+        return {
+          type: 'error',
+          title: 'Registration Failed',
+          message: message || 'An error occurred during registration. Please try again.',
+          showLoginButton: false
+        };
+    }
+  };
 
   const handlePhotoChange = (e) => {
     const file = e.target.files?.[0];
@@ -152,14 +194,99 @@ const RegisterPage = () => {
         });
       }, 2000);
     } catch (e) {
-      setErrors({ submit: e?.message || "Registration failed. Try again." });
+      // Check if it's a structured error with errorCode
+      const errorCode = e?.errorCode;
+      const message = e?.message || "Registration failed. Try again.";
+      
+      if (errorCode) {
+        setErrorModal(getErrorModalContent(errorCode, message));
+      } else {
+        setErrors({ submit: message });
+      }
     } finally {
       setSubmitting(false);
     }
   };
 
+  // Error Modal Component
+  const ErrorModal = () => {
+    if (!errorModal) return null;
+
+    return (
+      <AnimatePresence>
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+          onClick={() => setErrorModal(null)}
+        >
+          <motion.div
+            initial={{ scale: 0.9, opacity: 0, y: 20 }}
+            animate={{ scale: 1, opacity: 1, y: 0 }}
+            exit={{ scale: 0.9, opacity: 0, y: 20 }}
+            className="bg-white dark:bg-slate-800 rounded-2xl p-6 max-w-md w-full shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="text-center">
+              <div className={`w-16 h-16 mx-auto rounded-full flex items-center justify-center mb-4 ${
+                errorModal.type === 'warning' 
+                  ? 'bg-amber-100 dark:bg-amber-900/30' 
+                  : 'bg-red-100 dark:bg-red-900/30'
+              }`}>
+                <FaExclamationTriangle className={`text-3xl ${
+                  errorModal.type === 'warning' 
+                    ? 'text-amber-500' 
+                    : 'text-red-500'
+                }`} />
+              </div>
+              
+              <h3 className="text-xl font-bold text-slate-800 dark:text-white mb-2">
+                {errorModal.title}
+              </h3>
+              
+              <p className="text-slate-600 dark:text-slate-300 mb-6">
+                {errorModal.message}
+              </p>
+              
+              <div className="flex gap-3 justify-center">
+                {errorModal.showLoginButton && (
+                  <motion.button
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                    onClick={() => navigate('/login', { state: { email: form.email } })}
+                    className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white font-semibold rounded-xl shadow-lg"
+                  >
+                    <FaSignInAlt />
+                    Go to Login
+                  </motion.button>
+                )}
+                <motion.button
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  onClick={() => setErrorModal(null)}
+                  className={`flex items-center gap-2 px-6 py-3 font-semibold rounded-xl ${
+                    errorModal.showLoginButton 
+                      ? 'bg-slate-200 dark:bg-slate-700 text-slate-800 dark:text-white hover:bg-slate-300 dark:hover:bg-slate-600' 
+                      : 'bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white shadow-lg'
+                  }`}
+                >
+                  <FaTimes />
+                  {errorModal.showLoginButton ? 'Try Again' : 'Close'}
+                </motion.button>
+              </div>
+            </div>
+          </motion.div>
+        </motion.div>
+      </AnimatePresence>
+    );
+  };
+
   return (
     <div className="min-h-screen w-full overflow-y-auto bg-gradient-to-br from-blue-50 via-indigo-50 to-emerald-50 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900 relative">
+      {/* Error Modal */}
+      <ErrorModal />
+      
       {/* Background Pattern */}
       <div className="absolute inset-0 opacity-30 dark:opacity-10 pointer-events-none" style={{
         backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%233b82f6' fill-opacity='0.15'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")`,

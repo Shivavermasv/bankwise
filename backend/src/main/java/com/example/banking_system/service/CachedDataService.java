@@ -62,6 +62,7 @@ public class CachedDataService {
         log.debug("Evicting account cache for: {}", accountNumber);
     }
 
+    @CacheEvict(value = "userByEmail", key = "#email")
     public void evictUserCache(String email) {
         log.debug("Evicting user cache for: {}", email);
     }

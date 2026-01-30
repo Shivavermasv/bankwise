@@ -13,8 +13,10 @@ import java.util.List;
 @Repository
 public interface ScheduledPaymentRepository extends JpaRepository<ScheduledPayment, Long> {
 
+    @Query("SELECT sp FROM ScheduledPayment sp JOIN FETCH sp.fromAccount WHERE sp.user = ?1 ORDER BY sp.nextExecutionDate ASC")
     List<ScheduledPayment> findByUserOrderByNextExecutionDateAsc(User user);
 
+    @Query("SELECT sp FROM ScheduledPayment sp JOIN FETCH sp.fromAccount WHERE sp.user = ?1 AND sp.status = ?2 ORDER BY sp.nextExecutionDate ASC")
     List<ScheduledPayment> findByUserAndStatusOrderByNextExecutionDateAsc(User user, ScheduledPaymentStatus status);
 
     @Query("SELECT sp FROM ScheduledPayment sp WHERE sp.status = 'ACTIVE' AND sp.nextExecutionDate <= ?1")

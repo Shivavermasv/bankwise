@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { useTheme } from '../../context/ThemeContext.jsx';
@@ -7,8 +7,283 @@ import {
   FaTicketAlt, FaSync, FaCheckCircle, FaExclamationTriangle,
   FaNetworkWired, FaTerminal, FaFileAlt, FaPlay, FaTimes,
   FaCheck, FaSpinner, FaCode, FaSearch, FaCopy, FaEye,
-  FaSignOutAlt, FaHeartbeat, FaMoon, FaSun
+  FaSignOutAlt, FaHeartbeat, FaMoon, FaSun, FaFilter
 } from 'react-icons/fa';
+
+// Log level colors and patterns
+const LOG_LEVELS = {
+  ERROR: { color: 'text-red-400', bg: 'bg-red-900/30', badge: 'bg-red-500' },
+  WARN: { color: 'text-yellow-400', bg: 'bg-yellow-900/20', badge: 'bg-yellow-500' },
+  INFO: { color: 'text-blue-400', bg: 'bg-blue-900/10', badge: 'bg-blue-500' },
+  DEBUG: { color: 'text-purple-400', bg: 'bg-purple-900/10', badge: 'bg-purple-500' },
+  TRACE: { color: 'text-slate-500', bg: 'bg-slate-900/10', badge: 'bg-slate-500' }
+};
+
+// Parse and format a single log line
+const parseLogLine = (line) => {
+  // Pattern: YYYY-MM-DD HH:MM:SS LEVEL Logger - Message
+  const fullPattern = /^(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2})\s+(ERROR|WARN|INFO|DEBUG|TRACE)\s+(\S+)\s*[-–]\s*(.*)$/;
+  // Short pattern: HH:MM:SS LEVEL Logger - Message
+  const shortPattern = /^(\d{2}:\d{2}:\d{2})\s+(ERROR|WARN|INFO|DEBUG|TRACE)\s+(\S+)\s*[-–]\s*(.*)$/;
+  
+  let match = line.match(fullPattern) || line.match(shortPattern);
+  
+  if (match) {
+    return {
+      timestamp: match[1],
+      level: match[2],
+      logger: match[3],
+      message: match[4],
+      isStackTrace: false
+    };
+  }
+  
+  // Check if it's a stack trace line
+  if (line.trim().startsWith('at ') || line.includes('Exception') || line.includes('Error:')) {
+    return { raw: line, isStackTrace: true, level: 'ERROR' };
+  }
+  
+  return { raw: line, isStackTrace: false, level: null };
+};
+
+// Extract API endpoint from error message
+const extractApiEndpoint = (message) => {
+  // Pattern: "at /api/..." or "exception at /api/..."
+  const apiMatch = message?.match(/(?:at\s+)?(\/?api\/[^\s]+)/i);
+  if (apiMatch) return apiMatch[1];
+  
+  // Pattern for controller methods
+  const controllerMatch = message?.match(/(\w+Controller\.\w+)/);
+  if (controllerMatch) return controllerMatch[1];
+  
+  return null;
+};
+
+// Extract error cause from message or exception
+const extractErrorCause = (message, stackLines = []) => {
+  // Check for common patterns
+  if (message?.includes('NullPointerException')) return 'Null Pointer Exception';
+  if (message?.includes('RuntimeException')) {
+    const causeMatch = message.match(/RuntimeException:\s*(.+)/);
+    return causeMatch ? causeMatch[1].substring(0, 100) : 'Runtime Exception';
+  }
+  if (message?.includes('Failed to')) {
+    const failMatch = message.match(/(Failed to [^.]+)/);
+    return failMatch ? failMatch[1] : message.substring(0, 100);
+  }
+  if (message?.includes('Access denied')) return 'Access Denied';
+  if (message?.includes('not found')) return 'Resource Not Found';
+  
+  // Look in stack trace for Caused by
+  for (const line of stackLines) {
+    if (line.includes('Caused by:')) {
+      return line.replace('Caused by:', '').trim().substring(0, 100);
+    }
+  }
+  
+  return message?.substring(0, 100) || 'Unknown Error';
+};
+
+// Parse errors from log content into table format
+const parseErrorsToTable = (content) => {
+  if (!content) return [];
+  
+  const lines = content.split('\n');
+  const errors = [];
+  let currentError = null;
+  let stackLines = [];
+  
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const parsed = parseLogLine(line);
+    
+    if (parsed.level === 'ERROR' && !parsed.isStackTrace) {
+      // Save previous error if exists
+      if (currentError) {
+        currentError.cause = extractErrorCause(currentError.message, stackLines);
+        currentError.stackTrace = stackLines.join('\n');
+        errors.push(currentError);
+      }
+      
+      // Start new error
+      currentError = {
+        id: errors.length + 1,
+        timestamp: parsed.timestamp,
+        logger: parsed.logger?.split('.').pop() || parsed.logger,
+        fullLogger: parsed.logger,
+        message: parsed.message,
+        endpoint: extractApiEndpoint(parsed.message),
+        cause: null,
+        stackTrace: ''
+      };
+      stackLines = [];
+    } else if (currentError && (parsed.isStackTrace || line.trim().startsWith('at '))) {
+      stackLines.push(line);
+      // Try to extract endpoint from stack trace
+      if (!currentError.endpoint) {
+        currentError.endpoint = extractApiEndpoint(line);
+      }
+    } else if (!parsed.level && currentError) {
+      // Continuation of previous error
+      stackLines.push(line);
+    }
+  }
+  
+  // Don't forget the last error
+  if (currentError) {
+    currentError.cause = extractErrorCause(currentError.message, stackLines);
+    currentError.stackTrace = stackLines.join('\n');
+    errors.push(currentError);
+  }
+  
+  return errors.reverse(); // Most recent first
+};
+
+// Error Table Component
+const ErrorTable = ({ content, onViewStack }) => {
+  const errors = useMemo(() => parseErrorsToTable(content), [content]);
+  const [expandedId, setExpandedId] = useState(null);
+  
+  if (errors.length === 0) {
+    return (
+      <div className="text-center py-8 text-slate-500">
+        <FaCheckCircle className="text-4xl mx-auto mb-3 text-green-500" />
+        <p>No errors found in the logs</p>
+      </div>
+    );
+  }
+  
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full text-sm">
+        <thead>
+          <tr className="bg-slate-800 text-left">
+            <th className="px-3 py-2 text-slate-400 font-medium">#</th>
+            <th className="px-3 py-2 text-slate-400 font-medium">Time</th>
+            <th className="px-3 py-2 text-slate-400 font-medium">API / Source</th>
+            <th className="px-3 py-2 text-slate-400 font-medium">Error Cause</th>
+            <th className="px-3 py-2 text-slate-400 font-medium">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {errors.map((error) => (
+            <React.Fragment key={error.id}>
+              <tr className="border-b border-slate-700 hover:bg-slate-800/50">
+                <td className="px-3 py-2 text-slate-500">{error.id}</td>
+                <td className="px-3 py-2 text-slate-400 font-mono text-xs whitespace-nowrap">
+                  {error.timestamp}
+                </td>
+                <td className="px-3 py-2">
+                  <span className="text-cyan-400 font-mono text-xs">
+                    {error.endpoint || error.logger || 'Unknown'}
+                  </span>
+                </td>
+                <td className="px-3 py-2 text-red-400 max-w-md truncate" title={error.message}>
+                  {error.cause || error.message?.substring(0, 80)}
+                </td>
+                <td className="px-3 py-2">
+                  <button
+                    onClick={() => setExpandedId(expandedId === error.id ? null : error.id)}
+                    className="text-indigo-400 hover:text-indigo-300 text-xs flex items-center gap-1"
+                  >
+                    <FaEye />
+                    {expandedId === error.id ? 'Hide' : 'Stack'}
+                  </button>
+                </td>
+              </tr>
+              {expandedId === error.id && error.stackTrace && (
+                <tr>
+                  <td colSpan="5" className="bg-slate-900 px-4 py-3">
+                    <div className="text-xs font-mono text-red-300 whitespace-pre-wrap max-h-48 overflow-y-auto">
+                      <div className="text-slate-400 mb-2 font-sans">
+                        <strong>Full Message:</strong> {error.message}
+                      </div>
+                      <div className="text-slate-500 mb-1">Stack Trace:</div>
+                      {error.stackTrace}
+                    </div>
+                  </td>
+                </tr>
+              )}
+            </React.Fragment>
+          ))}
+        </tbody>
+      </table>
+      <div className="mt-3 text-xs text-slate-500 text-right">
+        Total Errors: {errors.length}
+      </div>
+    </div>
+  );
+};
+
+// LogViewer component with syntax highlighting
+const LogViewer = ({ content, filter }) => {
+  const formattedLines = useMemo(() => {
+    if (!content) return [];
+    
+    const lines = content.split('\n');
+    let currentLevel = null;
+    
+    return lines.map((line, index) => {
+      const parsed = parseLogLine(line);
+      
+      if (parsed.level) {
+        currentLevel = parsed.level;
+      }
+      
+      // Inherit level from previous log entry for stack traces
+      if (parsed.isStackTrace && !parsed.level) {
+        parsed.level = currentLevel;
+      }
+      
+      return { ...parsed, index };
+    }).filter(line => {
+      if (!filter || filter === 'ALL') return true;
+      return line.level === filter;
+    });
+  }, [content, filter]);
+  
+  if (!content) {
+    return (
+      <div className="text-slate-500 dark:text-slate-400 text-center py-8">
+        No log content to display. Select a file from the list.
+      </div>
+    );
+  }
+  
+  return (
+    <div className="space-y-0.5">
+      {formattedLines.map((line, idx) => {
+        const levelStyle = LOG_LEVELS[line.level] || { color: 'text-slate-400', bg: '' };
+        
+        if (line.raw !== undefined) {
+          // Raw line (no pattern match)
+          return (
+            <div key={idx} className={`px-2 py-0.5 font-mono text-xs ${line.isStackTrace ? 'pl-8 text-red-300' : 'text-slate-400'}`}>
+              {line.raw}
+            </div>
+          );
+        }
+        
+        return (
+          <div key={idx} className={`px-2 py-1 rounded ${levelStyle.bg} flex items-start gap-2 hover:bg-slate-800/50 transition-colors`}>
+            <span className="text-slate-500 text-xs font-mono min-w-[70px] flex-shrink-0">
+              {line.timestamp}
+            </span>
+            <span className={`text-xs font-bold min-w-[50px] flex-shrink-0 ${levelStyle.color}`}>
+              {line.level}
+            </span>
+            <span className="text-cyan-400 text-xs font-mono min-w-[120px] flex-shrink-0 truncate" title={line.logger}>
+              {line.logger?.split('.').pop() || line.logger}
+            </span>
+            <span className={`text-xs font-mono flex-1 ${levelStyle.color}`}>
+              {line.message}
+            </span>
+          </div>
+        );
+      })}
+    </div>
+  );
+};
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || '';
 
@@ -63,6 +338,8 @@ const DeveloperDashboard = () => {
   const [tickets, setTickets] = useState([]);
   const [logFiles, setLogFiles] = useState([]);
   const [logContent, setLogContent] = useState(null);
+  const [logLevelFilter, setLogLevelFilter] = useState('ALL');
+  const [logViewMode, setLogViewMode] = useState('table'); // 'table' or 'raw'
   const [apiEndpoints, setApiEndpoints] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -604,19 +881,66 @@ const DeveloperDashboard = () => {
 
               {/* Log Content */}
               <div className="lg:col-span-3 bg-white dark:bg-slate-800 rounded-xl p-6 shadow-lg border border-slate-200/50 dark:border-slate-700/50">
-                <div className="flex justify-between items-center mb-4">
+                <div className="flex flex-wrap justify-between items-center gap-4 mb-4">
                   <h3 className="text-lg font-semibold text-slate-800 dark:text-white">
                     {logContent ? logContent.filename : 'Select a log file'}
                   </h3>
-                  {logContent && (
-                    <span className="text-sm text-slate-500 dark:text-slate-400">
-                      Lines: {logContent.returnedLines} / {logContent.totalLines}
-                    </span>
+                  <div className="flex items-center gap-3">
+                    {/* View Mode Toggle */}
+                    <div className="flex bg-slate-100 dark:bg-slate-700 rounded-lg p-1">
+                      <button
+                        onClick={() => setLogViewMode('table')}
+                        className={`px-3 py-1 text-xs rounded-md transition-colors ${
+                          logViewMode === 'table' 
+                            ? 'bg-indigo-600 text-white' 
+                            : 'text-slate-600 dark:text-slate-400 hover:text-slate-800'
+                        }`}
+                      >
+                        <FaExclamationTriangle className="inline mr-1" /> Errors Table
+                      </button>
+                      <button
+                        onClick={() => setLogViewMode('raw')}
+                        className={`px-3 py-1 text-xs rounded-md transition-colors ${
+                          logViewMode === 'raw' 
+                            ? 'bg-indigo-600 text-white' 
+                            : 'text-slate-600 dark:text-slate-400 hover:text-slate-800'
+                        }`}
+                      >
+                        <FaTerminal className="inline mr-1" /> Raw Logs
+                      </button>
+                    </div>
+                    {/* Log Level Filter - only show for raw view */}
+                    {logViewMode === 'raw' && (
+                      <div className="flex items-center gap-2">
+                        <FaFilter className="text-slate-400" />
+                        <select
+                          value={logLevelFilter}
+                          onChange={(e) => setLogLevelFilter(e.target.value)}
+                          className="px-3 py-1.5 rounded-lg bg-slate-100 dark:bg-slate-700 text-slate-800 dark:text-white border-none text-sm focus:ring-2 focus:ring-indigo-500"
+                        >
+                          <option value="ALL">All Levels</option>
+                          <option value="ERROR">ERROR</option>
+                          <option value="WARN">WARN</option>
+                          <option value="INFO">INFO</option>
+                          <option value="DEBUG">DEBUG</option>
+                          <option value="TRACE">TRACE</option>
+                        </select>
+                      </div>
+                    )}
+                    {logContent && (
+                      <span className="text-sm text-slate-500 dark:text-slate-400">
+                        Lines: {logContent.returnedLines} / {logContent.totalLines}
+                      </span>
+                    )}
+                  </div>
+                </div>
+                <div className="bg-slate-900 p-4 rounded-xl overflow-x-auto max-h-[60vh] overflow-y-auto">
+                  {logViewMode === 'table' ? (
+                    <ErrorTable content={logContent?.content} />
+                  ) : (
+                    <LogViewer content={logContent?.content} filter={logLevelFilter} />
                   )}
                 </div>
-                <pre className="bg-slate-900 text-green-400 p-4 rounded-xl overflow-x-auto max-h-[60vh] overflow-y-auto font-mono text-sm">
-                  {logContent?.content || 'No log content to display. Select a file from the list or logs are console-only on Railway.'}
-                </pre>
               </div>
             </div>
           </motion.div>

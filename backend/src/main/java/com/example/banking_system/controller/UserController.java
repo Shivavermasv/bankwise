@@ -2,6 +2,7 @@ package com.example.banking_system.controller;
 
 import com.example.banking_system.service.UserService;
 import com.example.banking_system.service.OtpService;
+import com.example.banking_system.service.CachedDataService;
 import com.example.banking_system.dto.CreateRequestDto;
 import com.example.banking_system.dto.LoginResponseUserDto;
 import com.example.banking_system.dto.OtpRequest;
@@ -17,6 +18,7 @@ import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -42,6 +44,7 @@ public class UserController {
     private final AccountRepository accountRepository;
     private final UserRepository userRepository;
     private final AuditService auditService;
+    private final CachedDataService cachedDataService;
 
     @PostMapping("/create")
     public ResponseEntity<Object> createUser(@Valid @RequestBody CreateRequestDto user) {
@@ -136,6 +139,7 @@ public class UserController {
         ));
     }
 
+    @Transactional
     @PreAuthorize("hasAnyRole('USER','CUSTOMER','ADMIN','MANAGER','DEVELOPER')")
     @PutMapping("/user/update-profile")
     public ResponseEntity<?> updateProfile(
@@ -183,6 +187,10 @@ public class UserController {
         }
         
         userRepository.save(user);
+        
+        // Evict user cache to ensure fresh data on next fetch
+        cachedDataService.evictUserCache(currentEmail);
+        
         auditService.recordSystem("PROFILE_UPDATE", "USER", String.valueOf(user.getId()), "SUCCESS", "Profile updated");
         
         // Return updated user data

@@ -374,9 +374,9 @@ const SchedulePaymentModal = ({ payment, token, user, onClose, onSuccess }) => {
     setError(null);
 
     try {
-      // Build the request with fromAccountId
+      // Build the request with fromAccountNumber
       const requestData = {
-        fromAccountId: Number(user?.id || user?.accountId),
+        fromAccountNumber: user?.accountNumber,
         toAccountNumber: formData.toAccountNumber,
         beneficiaryName: formData.beneficiaryName || 'Beneficiary',
         amount: Number(formData.amount),
@@ -387,8 +387,8 @@ const SchedulePaymentModal = ({ payment, token, user, onClose, onSuccess }) => {
         maxExecutions: null
       };
 
-      if (!requestData.fromAccountId) {
-        throw new Error('Account ID not found. Please refresh the page.');
+      if (!requestData.fromAccountNumber) {
+        throw new Error('Account not found. Please refresh the page.');
       }
 
       if (payment) {
@@ -400,7 +400,10 @@ const SchedulePaymentModal = ({ payment, token, user, onClose, onSuccess }) => {
       }
       onSuccess();
     } catch (err) {
-      setError(err.message || 'Failed to save scheduled payment');
+      // Handle error from backend { error: "..." } or { message: "..." }
+      const errorMessage = err.error || err.message || 'Failed to save scheduled payment';
+      setError(errorMessage);
+      console.error('Scheduled payment error:', err);
     } finally {
       setLoading(false);
     }

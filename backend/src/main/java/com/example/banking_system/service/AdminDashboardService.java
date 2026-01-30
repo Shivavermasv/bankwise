@@ -27,9 +27,14 @@ public class AdminDashboardService {
     public Map<String, Object> getAnalytics() {
         Map<String, Object> analytics = new HashMap<>();
         analytics.put("totalUsers", userRepository.count());
-        Object object = userRepository.countByRole(Role.USER);
-        analytics.put("activeUsers", object);
-        analytics.put("totalAccounts", object);
+        
+        // Count users with role USER or CUSTOMER (bank account holders)
+        long userRoleCount = userRepository.countByRole(Role.USER);
+        long customerRoleCount = userRepository.countByRole(Role.CUSTOMER);
+        analytics.put("activeUsers", userRoleCount + customerRoleCount);
+        
+        // Total accounts should be the actual account count, not user count
+        analytics.put("totalAccounts", accountRepository.count());
         analytics.put("verifiedAccounts", accountRepository.countByVerificationStatus(VerificationStatus.VERIFIED));
         analytics.put("pendingAccounts", accountRepository.countByVerificationStatus(VerificationStatus.PENDING));
         analytics.put("suspendedAccounts", accountRepository.countByVerificationStatus(VerificationStatus.SUSPENDED));

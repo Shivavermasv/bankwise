@@ -25,6 +25,7 @@ import {
   UserAnalyticsDashboard,
   EmiManagement,
 } from "./Components";
+import ForgotPasswordPage from "./Components/Auth/ForgotPasswordPage";
 import GlobalLoadingOverlay from "./Components/Modals/GlobalLoadingOverlay";
 import { AuthGuard, PublicRoute } from "./Components/AuthGuard";
 import "./index.css";
@@ -159,6 +160,14 @@ function App() {
           element={
             <PublicRoute>
               <RegisterPage />
+            </PublicRoute>
+          }
+        />
+        <Route
+          path="/forgot-password"
+          element={
+            <PublicRoute>
+              <ForgotPasswordPage />
             </PublicRoute>
           }
         />

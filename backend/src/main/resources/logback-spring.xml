@@ -30,10 +30,30 @@
         </encoder>
     </appender>
 
-    <!-- INFO for console, ERROR still goes to file -->
-    <root level="INFO">
-        <appender-ref ref="CONSOLE"/>
-        <appender-ref ref="ERROR_FILE"/>
-    </root>
+    <!-- Dev profile: DEBUG level for application code -->
+    <springProfile name="dev,default">
+        <logger name="com.example.banking_system" level="DEBUG" additivity="false">
+            <appender-ref ref="CONSOLE"/>
+        </logger>
+        <root level="INFO">
+            <appender-ref ref="CONSOLE"/>
+        </root>
+    </springProfile>
+
+    <!-- Production profile: INFO level, include file logging -->
+    <springProfile name="prod">
+        <root level="INFO">
+            <appender-ref ref="CONSOLE"/>
+            <appender-ref ref="ERROR_FILE"/>
+        </root>
+    </springProfile>
+
+    <!-- Fallback when no profile active -->
+    <springProfile name="!dev,!prod">
+        <root level="INFO">
+            <appender-ref ref="CONSOLE"/>
+            <appender-ref ref="ERROR_FILE"/>
+        </root>
+    </springProfile>
 
 </configuration>
