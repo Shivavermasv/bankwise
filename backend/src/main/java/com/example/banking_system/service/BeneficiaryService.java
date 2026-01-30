@@ -59,9 +59,8 @@ public class BeneficiaryService {
             throw new RuntimeException("Account number not found. Please verify the account number.");
         }
 
-        // Prevent adding self as beneficiary
-        if (user.getAccounts() != null && user.getAccounts().stream()
-                .anyMatch(acc -> acc.getAccountNumber().equals(beneficiaryAccountNumber))) {
+        // Prevent adding self as beneficiary - check if the account belongs to the current user
+        if (beneficiaryAccount.getUser() != null && beneficiaryAccount.getUser().getId().equals(user.getId())) {
             throw new RuntimeException("You cannot add your own account as a beneficiary");
         }
 
