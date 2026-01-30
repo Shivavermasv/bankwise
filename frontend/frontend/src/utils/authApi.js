@@ -25,8 +25,18 @@ export async function loginWithCredentials({ email, password, devPassword }) {
     const data = await res.json();
     return { step: 'authenticated', user: data };
   }
-  const text = await res.text();
-  throw new Error(text || 'Login failed');
+  // Parse error response properly
+  let errorData;
+  try {
+    errorData = await res.json();
+  } catch {
+    errorData = { message: 'Login failed' };
+  }
+  // Throw an object with errorCode and message for proper error handling
+  const error = new Error(errorData.message || 'Login failed');
+  error.errorCode = errorData.errorCode;
+  error.status = res.status;
+  throw error;
 }
 
 // Developer-only login with just the dev password (no email/password required)
