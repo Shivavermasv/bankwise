@@ -120,13 +120,13 @@ const AccountsPage = () => {
 
         <div className="flex flex-col md:flex-row gap-3 mb-5">
           <input
-            className="flex-1 px-4 py-2.5 rounded-xl border border-slate-300/70 dark:border-slate-600 bg-white/70 dark:bg-slate-900/40 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+            className="flex-1 px-4 py-2.5 rounded-xl border border-slate-300/70 dark:border-slate-600 bg-white/70 dark:bg-slate-900/40 text-slate-800 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
             placeholder="Search by account number, name, email, phone"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
           />
           <select
-            className="px-4 py-2.5 rounded-xl border border-slate-300/70 dark:border-slate-600 bg-white/70 dark:bg-slate-900/40 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+            className="px-4 py-2.5 rounded-xl border border-slate-300/70 dark:border-slate-600 bg-white/70 dark:bg-slate-900/40 text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
           >
@@ -166,11 +166,11 @@ const AccountsPage = () => {
                   className="hover:bg-slate-50 dark:hover:bg-slate-700/30 cursor-pointer"
                   onClick={() => navigate(`/accounts/${acc.accountNumber}`, { state: { account: acc } })}
                 >
-                  <td className="p-3 font-mono text-xs">{acc.accountNumber}</td>
-                  <td className="p-3">{acc.userName || '-'}</td>
-                  <td className="p-3 text-xs text-slate-500">{acc.userEmail || '-'}</td>
-                  <td className="p-3">₹{formatBalance(acc.balance)}</td>
-                  <td className="p-3">{acc.accountType || '-'}</td>
+                  <td className="p-3 font-mono text-xs text-slate-800 dark:text-slate-200">{acc.accountNumber}</td>
+                  <td className="p-3 text-slate-700 dark:text-slate-200">{acc.userName || '-'}</td>
+                  <td className="p-3 text-xs text-slate-500 dark:text-slate-400">{acc.userEmail || '-'}</td>
+                  <td className="p-3 text-slate-700 dark:text-slate-200">₹{formatBalance(acc.balance)}</td>
+                  <td className="p-3 text-slate-700 dark:text-slate-200">{acc.accountType || '-'}</td>
                   <td className="p-3"><span className={statusBadge(acc.verificationStatus)}>{acc.verificationStatus || '-'}</span></td>
                   <td className="p-3" onClick={(e) => e.stopPropagation()}>
                     <div className="flex flex-wrap gap-2">

@@ -279,10 +279,7 @@ public class AccountService {
         return true;
     }
 
-    @Cacheable(
-            value = "accountListForAdmin",
-            key = "#status + ':' + (#q == null ? '' : #q)"
-    )
+    // Note: Not caching admin list to avoid serialization issues and ensure fresh data
     public List<AdminAccountDto> listAccountsForAdmin(String status, String q) {
         VerificationStatus verificationStatus = null;
         if (status != null && !status.isBlank() && !"ALL".equalsIgnoreCase(status)) {

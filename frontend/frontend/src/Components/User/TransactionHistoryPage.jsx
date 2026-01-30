@@ -379,18 +379,18 @@ const TransactionHistoryPage = () => {
         {/* Transaction Table */}
         <div
           style={{
-            background: "rgba(255,255,255,0.9)",
+            background: theme === 'dark' ? "rgba(30,41,59,0.9)" : "rgba(255,255,255,0.9)",
             backdropFilter: "blur(10px)",
             borderRadius: 20,
             overflow: "hidden",
-            boxShadow: "0 8px 32px rgba(0,0,0,0.08)"
+            boxShadow: theme === 'dark' ? "0 8px 32px rgba(0,0,0,0.3)" : "0 8px 32px rgba(0,0,0,0.08)"
           }}
         >
           {/* Table Header */}
           <div style={{
-            background: "linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%)",
+            background: theme === 'dark' ? "linear-gradient(135deg, #1e293b 0%, #0f172a 100%)" : "linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%)",
             padding: 20,
-            borderBottom: "1px solid rgba(148,163,184,0.3)"
+            borderBottom: theme === 'dark' ? "1px solid rgba(71,85,105,0.5)" : "1px solid rgba(148,163,184,0.3)"
           }}>
             <div style={{
               display: "flex",
@@ -400,14 +400,14 @@ const TransactionHistoryPage = () => {
               <h3 style={{
                 fontSize: 18,
                 fontWeight: 600,
-                color: "#1e293b",
+                color: theme === 'dark' ? "#f1f5f9" : "#1e293b",
                 margin: 0
               }}>
                 Transactions ({totalElements} total)
               </h3>
               <div style={{
                 fontSize: 14,
-                color: "#64748b"
+                color: theme === 'dark' ? "#94a3b8" : "#64748b"
               }}>
                 Page {filters.page + 1} of {totalPages}
               </div>
@@ -419,7 +419,7 @@ const TransactionHistoryPage = () => {
             <div style={{
               padding: 60,
               textAlign: "center",
-              color: "#64748b",
+              color: theme === 'dark' ? "#94a3b8" : "#64748b",
               fontSize: 16
             }}>
               Loading transactions...
@@ -437,7 +437,7 @@ const TransactionHistoryPage = () => {
             <div style={{
               padding: 60,
               textAlign: "center",
-              color: "#64748b",
+              color: theme === 'dark' ? "#94a3b8" : "#64748b",
               fontSize: 16
             }}>
               No transactions found for the selected period
@@ -451,15 +451,15 @@ const TransactionHistoryPage = () => {
                 }}>
                   <thead>
                     <tr style={{
-                      background: "rgba(248,250,252,0.5)"
+                      background: theme === 'dark' ? "rgba(30,41,59,0.5)" : "rgba(248,250,252,0.5)"
                     }}>
                       <th style={{
                         padding: 16,
                         textAlign: "left",
                         fontSize: 14,
                         fontWeight: 600,
-                        color: "#374151",
-                        borderBottom: "1px solid rgba(148,163,184,0.2)"
+                        color: theme === 'dark' ? "#e2e8f0" : "#374151",
+                        borderBottom: theme === 'dark' ? "1px solid rgba(71,85,105,0.3)" : "1px solid rgba(148,163,184,0.2)"
                       }}>
                         Date & Time
                       </th>
@@ -468,8 +468,8 @@ const TransactionHistoryPage = () => {
                         textAlign: "left",
                         fontSize: 14,
                         fontWeight: 600,
-                        color: "#374151",
-                        borderBottom: "1px solid rgba(148,163,184,0.2)"
+                        color: theme === 'dark' ? "#e2e8f0" : "#374151",
+                        borderBottom: theme === 'dark' ? "1px solid rgba(71,85,105,0.3)" : "1px solid rgba(148,163,184,0.2)"
                       }}>
                         Description
                       </th>
@@ -478,8 +478,8 @@ const TransactionHistoryPage = () => {
                         textAlign: "left",
                         fontSize: 14,
                         fontWeight: 600,
-                        color: "#374151",
-                        borderBottom: "1px solid rgba(148,163,184,0.2)"
+                        color: theme === 'dark' ? "#e2e8f0" : "#374151",
+                        borderBottom: theme === 'dark' ? "1px solid rgba(71,85,105,0.3)" : "1px solid rgba(148,163,184,0.2)"
                       }}>
                         Type
                       </th>
@@ -488,20 +488,10 @@ const TransactionHistoryPage = () => {
                         textAlign: "right",
                         fontSize: 14,
                         fontWeight: 600,
-                        color: "#374151",
-                        borderBottom: "1px solid rgba(148,163,184,0.2)"
+                        color: theme === 'dark' ? "#e2e8f0" : "#374151",
+                        borderBottom: theme === 'dark' ? "1px solid rgba(71,85,105,0.3)" : "1px solid rgba(148,163,184,0.2)"
                       }}>
                         Amount
-                      </th>
-                      <th style={{
-                        padding: 16,
-                        textAlign: "right",
-                        fontSize: 14,
-                        fontWeight: 600,
-                        color: "#374151",
-                        borderBottom: "1px solid rgba(148,163,184,0.2)"
-                      }}>
-                        Balance
                       </th>
                     </tr>
                   </thead>
@@ -510,20 +500,20 @@ const TransactionHistoryPage = () => {
                       <tr
                         key={transaction.id || index}
                         style={{
-                          borderBottom: "1px solid rgba(148,163,184,0.1)"
+                          borderBottom: theme === 'dark' ? "1px solid rgba(71,85,105,0.2)" : "1px solid rgba(148,163,184,0.1)"
                         }}
                       >
                         <td style={{
                           padding: 16,
                           fontSize: 14,
-                          color: "#374151"
+                          color: theme === 'dark' ? "#cbd5e1" : "#374151"
                         }}>
                           {formatDate(transaction.date || transaction.timestamp)}
                         </td>
                         <td style={{
                           padding: 16,
                           fontSize: 14,
-                          color: "#374151"
+                          color: theme === 'dark' ? "#cbd5e1" : "#374151"
                         }}>
                           {transaction.description || transaction.narration || "Transaction"}
                         </td>
@@ -551,15 +541,6 @@ const TransactionHistoryPage = () => {
                         }}>
                           {transaction.amount >= 0 ? "+" : "-"}{formatCurrency(Math.abs(transaction.amount))}
                         </td>
-                        <td style={{
-                          padding: 16,
-                          fontSize: 14,
-                          fontWeight: 500,
-                          textAlign: "right",
-                          color: "#374151"
-                        }}>
-                          {formatCurrency(transaction.balance || 0)}
-                        </td>
                       </tr>
                     ))}
                   </tbody>
@@ -574,17 +555,17 @@ const TransactionHistoryPage = () => {
                   justifyContent: "center",
                   alignItems: "center",
                   gap: 8,
-                  borderTop: "1px solid rgba(148,163,184,0.2)"
+                  borderTop: theme === 'dark' ? "1px solid rgba(71,85,105,0.3)" : "1px solid rgba(148,163,184,0.2)"
                 }}>
                   <button
                     onClick={() => handlePageChange(filters.page - 1)}
                     disabled={filters.page === 0}
                     style={{
                       padding: "8px 16px",
-                      border: "1px solid rgba(148,163,184,0.3)",
+                      border: theme === 'dark' ? "1px solid rgba(71,85,105,0.5)" : "1px solid rgba(148,163,184,0.3)",
                       borderRadius: 8,
-                      background: filters.page === 0 ? "#f8fafc" : "#fff",
-                      color: filters.page === 0 ? "#94a3b8" : "#374151",
+                      background: filters.page === 0 ? (theme === 'dark' ? "#1e293b" : "#f8fafc") : (theme === 'dark' ? "#334155" : "#fff"),
+                      color: filters.page === 0 ? "#94a3b8" : (theme === 'dark' ? "#e2e8f0" : "#374151"),
                       cursor: filters.page === 0 ? "not-allowed" : "pointer",
                       fontSize: 14
                     }}
@@ -600,10 +581,10 @@ const TransactionHistoryPage = () => {
                         onClick={() => handlePageChange(pageNum)}
                         style={{
                           padding: "8px 12px",
-                          border: "1px solid rgba(148,163,184,0.3)",
+                          border: theme === 'dark' ? "1px solid rgba(71,85,105,0.5)" : "1px solid rgba(148,163,184,0.3)",
                           borderRadius: 8,
-                          background: pageNum === filters.page ? "#3b82f6" : "#fff",
-                          color: pageNum === filters.page ? "#fff" : "#374151",
+                          background: pageNum === filters.page ? "#3b82f6" : (theme === 'dark' ? "#334155" : "#fff"),
+                          color: pageNum === filters.page ? "#fff" : (theme === 'dark' ? "#e2e8f0" : "#374151"),
                           cursor: "pointer",
                           fontSize: 14,
                           minWidth: 40
@@ -619,10 +600,10 @@ const TransactionHistoryPage = () => {
                     disabled={filters.page >= totalPages - 1}
                     style={{
                       padding: "8px 16px",
-                      border: "1px solid rgba(148,163,184,0.3)",
+                      border: theme === 'dark' ? "1px solid rgba(71,85,105,0.5)" : "1px solid rgba(148,163,184,0.3)",
                       borderRadius: 8,
-                      background: filters.page >= totalPages - 1 ? "#f8fafc" : "#fff",
-                      color: filters.page >= totalPages - 1 ? "#94a3b8" : "#374151",
+                      background: filters.page >= totalPages - 1 ? (theme === 'dark' ? "#1e293b" : "#f8fafc") : (theme === 'dark' ? "#334155" : "#fff"),
+                      color: filters.page >= totalPages - 1 ? "#94a3b8" : (theme === 'dark' ? "#e2e8f0" : "#374151"),
                       cursor: filters.page >= totalPages - 1 ? "not-allowed" : "pointer",
                       fontSize: 14
                     }}

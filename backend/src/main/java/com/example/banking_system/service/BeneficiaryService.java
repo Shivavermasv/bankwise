@@ -51,7 +51,19 @@ public class BeneficiaryService {
         }
 
         // Validate the account exists - use getAccountByNumberForAuth which eagerly fetches user
-        Account beneficiaryAccount = cachedDataService.getAccountByNumberForAuth(beneficiaryAccountNumber);
+        Account beneficiaryAccount;
+        try {
+            beneficiaryAccount = cachedDataService.getAccountByNumberForAuth(beneficiaryAccountNumber);
+        } catch (Exception e) {
+            log.warn("Account not found for beneficiary: {}", beneficiaryAccountNumber);
+            throw new RuntimeException("Account number not found. Please verify the account number.");
+        }
+
+        // Prevent adding self as beneficiary
+        if (user.getAccounts() != null && user.getAccounts().stream()
+                .anyMatch(acc -> acc.getAccountNumber().equals(beneficiaryAccountNumber))) {
+            throw new RuntimeException("You cannot add your own account as a beneficiary");
+        }
 
         // Get the account holder's name (null-safe)
         String beneficiaryName = "Unknown";

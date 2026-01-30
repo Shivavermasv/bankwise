@@ -7,6 +7,7 @@ import com.example.banking_system.repository.AccountRepository;
 import com.example.banking_system.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.cache.CacheManager;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
@@ -20,6 +21,7 @@ public class CachedDataService {
 
     private final UserRepository userRepository;
     private final AccountRepository accountRepository;
+    private final CacheManager cacheManager;
 
     public User getUserByEmail(String email) {
         log.debug("Cache MISS: Loading user by email: {}", email);
@@ -65,5 +67,19 @@ public class CachedDataService {
     @CacheEvict(value = "userByEmail", key = "#email")
     public void evictUserCache(String email) {
         log.debug("Evicting user cache for: {}", email);
+    }
+
+    /**
+     * Clear all caches. Use with caution - primarily for admin/debugging purposes.
+     */
+    public void clearAllCaches() {
+        log.info("Clearing all caches");
+        cacheManager.getCacheNames().forEach(cacheName -> {
+            var cache = cacheManager.getCache(cacheName);
+            if (cache != null) {
+                cache.clear();
+                log.debug("Cleared cache: {}", cacheName);
+            }
+        });
     }
 }

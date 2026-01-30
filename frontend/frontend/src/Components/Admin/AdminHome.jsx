@@ -231,14 +231,14 @@ const AdminHome = () => {
       whileHover={{ y: -4 }}
       whileTap={{ scale: 0.97 }}
       onClick={onClick}
-      className="group relative overflow-hidden rounded-2xl border border-slate-200/60 bg-white/80 backdrop-blur p-5 flex items-center gap-5 shadow-sm text-left"
+      className="group relative overflow-hidden rounded-2xl border border-slate-200/60 dark:border-slate-700/60 bg-white/80 dark:bg-slate-800/80 backdrop-blur p-5 flex items-center gap-5 shadow-sm text-left"
     >
       <div className="relative w-14 h-14 rounded-xl flex items-center justify-center text-2xl" style={{ background: `linear-gradient(135deg, ${color}22 0%, ${color}11 100%)` }}>
         <span>{icon}</span>
         <span className="absolute inset-0 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity" style={{ background: `radial-gradient(circle at 30% 30%, ${color}33, transparent 70%)` }} />
       </div>
       <div className="flex flex-col">
-        <span className="text-xs font-medium uppercase tracking-wide text-slate-500">{title}</span>
+        <span className="text-xs font-medium uppercase tracking-wide text-slate-600 dark:text-slate-400">{title}</span>
         <span className="text-3xl font-bold leading-none mt-1" style={{ color }}>{count}</span>
       </div>
     </motion.button>
