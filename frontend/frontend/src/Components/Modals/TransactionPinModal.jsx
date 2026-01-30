@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { useAuth } from '../../hooks/useAuth';
 import { transactionPinApi } from '../../utils/bankingApi';
+import { getErrorMessage } from '../../utils/apiClient';
 import { FiLock, FiShield, FiKey, FiCheck, FiAlertCircle, FiRefreshCw } from 'react-icons/fi';
 
 /**
@@ -79,7 +80,7 @@ const TransactionPinModal = ({
       setSuccess('PIN set up successfully!');
       setTimeout(() => onSuccess?.(), 1500);
     } catch (err) {
-      setError(err.message || 'Failed to set up PIN');
+      setError(getErrorMessage(err, 'Failed to set up PIN'));
     } finally {
       setLoading(false);
     }
@@ -106,7 +107,7 @@ const TransactionPinModal = ({
         inputRefs.current[0]?.focus();
       }
     } catch (err) {
-      setError(err.message || 'Invalid PIN');
+      setError(getErrorMessage(err, 'Invalid PIN'));
       setPin(['', '', '', '']);
       inputRefs.current[0]?.focus();
     } finally {
@@ -132,7 +133,7 @@ const TransactionPinModal = ({
       setSuccess('PIN changed successfully!');
       setTimeout(() => onSuccess?.(), 1500);
     } catch (err) {
-      setError(err.message || 'Failed to change PIN');
+      setError(getErrorMessage(err, 'Failed to change PIN'));
     } finally {
       setLoading(false);
     }
@@ -147,7 +148,7 @@ const TransactionPinModal = ({
       setSuccess('OTP sent to your registered email/phone');
       setStep('enter_otp');
     } catch (err) {
-      setError(err.message || 'Failed to send OTP');
+      setError(getErrorMessage(err, 'Failed to send OTP'));
     } finally {
       setLoading(false);
     }
@@ -175,7 +176,7 @@ const TransactionPinModal = ({
       setSuccess('PIN reset successfully!');
       setTimeout(() => onSuccess?.(), 1500);
     } catch (err) {
-      setError(err.message || 'Failed to reset PIN');
+      setError(getErrorMessage(err, 'Failed to reset PIN'));
     } finally {
       setLoading(false);
     }

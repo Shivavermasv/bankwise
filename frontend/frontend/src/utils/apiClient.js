@@ -179,6 +179,32 @@ export async function apiFetch(path, { method = 'GET', headers = {}, body, token
   return promise;
 }
 
+/**
+ * Extract a user-friendly error message from an API error object.
+ * Handles various error formats: { error: "..." }, { message: "..." }, string, etc.
+ * @param {any} err - The error object from a catch block
+ * @param {string} fallback - Default message if no specific error found
+ * @returns {string} - The error message to display to user
+ */
+export function getErrorMessage(err, fallback = 'An unexpected error occurred') {
+  if (!err) return fallback;
+  
+  // Handle string errors
+  if (typeof err === 'string') return err;
+  
+  // Check common error properties in order of preference
+  if (err.error && typeof err.error === 'string') return err.error;
+  if (err.message && typeof err.message === 'string') return err.message;
+  if (err.msg && typeof err.msg === 'string') return err.msg;
+  if (err.detail && typeof err.detail === 'string') return err.detail;
+  
+  // Handle nested error objects
+  if (err.response?.data?.error) return err.response.data.error;
+  if (err.response?.data?.message) return err.response.data.message;
+  
+  return fallback;
+}
+
 // Helper to fetch analytics (base or realtime) guaranteeing all numeric fields present
 export async function fetchAnalytics({ token, realtime = false } = {}) {
   try {

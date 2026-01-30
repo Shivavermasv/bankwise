@@ -2,7 +2,6 @@ package com.example.banking_system.controller;
 
 import com.example.banking_system.service.TransactionService;
 import com.example.banking_system.dto.TransferRequestDto;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.validation.Valid;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -24,9 +23,6 @@ public class TransactionController {
 
     @Autowired
     private TransactionService transactionService;
-
-    @Autowired
-    private ObjectMapper objectMapper;
 
     /**
      * Process a transfer with idempotency support.

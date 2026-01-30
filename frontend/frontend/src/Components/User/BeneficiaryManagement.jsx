@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../../hooks/useAuth';
 import { beneficiaryApi } from '../../utils/bankingApi';
+import { getErrorMessage } from '../../utils/apiClient';
 import { FiUser, FiStar, FiSearch, FiPlus, FiEdit2, FiTrash2, FiClock, FiSend } from 'react-icons/fi';
 import Navbar from '../Layout/Navbar';
 import { useTheme } from '../../context/ThemeContext';
@@ -31,7 +32,7 @@ const BeneficiaryManagement = ({ onSelectBeneficiary, showSelectMode = false, em
       setBeneficiaries(allData || []);
       setFavorites(favData || []);
     } catch (err) {
-      setError(err.message || 'Failed to load beneficiaries');
+      setError(getErrorMessage(err, 'Failed to load beneficiaries'));
     } finally {
       setLoading(false);
     }
@@ -65,7 +66,7 @@ const BeneficiaryManagement = ({ onSelectBeneficiary, showSelectMode = false, em
       });
       loadBeneficiaries();
     } catch (err) {
-      setError(err.message || 'Failed to update favorite status');
+      setError(getErrorMessage(err, 'Failed to update favorite status'));
     }
   };
 
@@ -75,7 +76,7 @@ const BeneficiaryManagement = ({ onSelectBeneficiary, showSelectMode = false, em
       await beneficiaryApi.delete(token, id);
       loadBeneficiaries();
     } catch (err) {
-      setError(err.message || 'Failed to delete beneficiary');
+      setError(getErrorMessage(err, 'Failed to delete beneficiary'));
     }
   };
 
@@ -325,7 +326,7 @@ const BeneficiaryModal = ({ beneficiary, onClose, onSave, token }) => {
       }
       onSave();
     } catch (err) {
-      setError(err.message || 'Failed to save beneficiary');
+      setError(getErrorMessage(err, 'Failed to save beneficiary'));
     } finally {
       setLoading(false);
     }

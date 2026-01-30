@@ -30,6 +30,15 @@ export function listPendingLoans({ token }) {
   return apiFetch('/api/loan/pending', { token });
 }
 
+export function listAllLoans({ token, status }) {
+  const query = status && status !== 'ALL' ? { status } : {};
+  return apiFetch('/api/loan/all', { token, query });
+}
+
+export function getLoanDetails({ token, loanId }) {
+  return apiFetch(`/api/loan/${loanId}`, { token });
+}
+
 export async function approveLoan({ token, loanId }) {
   const result = await apiFetch(`/api/loan/approve/${loanId}`, {
     method: 'POST',

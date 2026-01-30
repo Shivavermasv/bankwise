@@ -25,6 +25,9 @@ public interface LoanRepo extends JpaRepository<LoanRequest, Long> {
     @Query("SELECT l FROM LoanRequest l JOIN FETCH l.bankAccount a JOIN FETCH a.user WHERE l.status = :status")
     List<LoanRequest> findByStatus(LoanStatus status);
 
+    @Query("SELECT l FROM LoanRequest l JOIN FETCH l.bankAccount a JOIN FETCH a.user ORDER BY l.requestDate DESC")
+    List<LoanRequest> findAllWithAccountAndUser();
+
     @Query("SELECT l FROM LoanRequest l JOIN FETCH l.bankAccount a JOIN FETCH a.user WHERE l.bankAccount.accountNumber = :accountNumber")
     List<LoanRequest> findByBankAccount_AccountNumber(String accountNumber);
 

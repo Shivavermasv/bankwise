@@ -52,6 +52,27 @@ public class LoanController {
         return ResponseEntity.ok(loanService.getLoansByStatus(LoanStatus.PENDING));
     }
 
+    @GetMapping("/all")
+    @PreAuthorize("hasAnyRole('ADMIN','MANAGER')")
+    public ResponseEntity<List<LoanResponseDto>> getAllLoans(
+            @RequestParam(required = false) String status) {
+        if (status != null && !status.isEmpty() && !"ALL".equalsIgnoreCase(status)) {
+            try {
+                LoanStatus loanStatus = LoanStatus.valueOf(status.toUpperCase());
+                return ResponseEntity.ok(loanService.getLoansByStatus(loanStatus));
+            } catch (IllegalArgumentException e) {
+                return ResponseEntity.badRequest().build();
+            }
+        }
+        return ResponseEntity.ok(loanService.getAllLoans());
+    }
+
+    @GetMapping("/{loanId}")
+    @PreAuthorize("hasAnyRole('ADMIN','MANAGER','USER','CUSTOMER')")
+    public ResponseEntity<LoanResponseDto> getLoanById(@PathVariable Long loanId) throws ResourceNotFoundException {
+        return ResponseEntity.ok(loanService.getLoanById(loanId));
+    }
+
     @GetMapping("/my/{accountNumber}")
     @PreAuthorize("hasAnyRole('USER','CUSTOMER')")
     public ResponseEntity<List<LoanResponseDto>> getMyLoans(@PathVariable String accountNumber) {

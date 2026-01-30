@@ -22,6 +22,7 @@ const adminLinks = [
   { label: 'Dashboard', to: '/admin-home' },
   { label: 'Accounts', to: '/accounts' },
   { label: 'Loan Approval', to: '/loan-approval' },
+  { label: 'Loan Management', to: '/loan-management' },
   { label: 'Support', to: '/support' }
 ];
 

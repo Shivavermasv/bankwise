@@ -9,6 +9,7 @@ import {
   AdminLoanApproval,
   LoanRequestDetails,
   AccountApprovalDetails,
+  LoanManagement,
   DepositPage,
   TransactionHistoryPage,
   TransferPage,
@@ -62,6 +63,11 @@ const protectedRoutes = [
     path: "/loan-approval/:loanId",
     roles: ["ADMIN", "MANAGER"],
     element: <LoanRequestDetails />,
+  },
+  {
+    path: "/loan-management",
+    roles: ["ADMIN", "MANAGER"],
+    element: <LoanManagement />,
   },
   {
     path: "/deposit",

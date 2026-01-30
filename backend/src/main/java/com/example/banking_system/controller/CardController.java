@@ -4,7 +4,6 @@ import com.example.banking_system.entity.Account;
 import com.example.banking_system.entity.Card;
 import com.example.banking_system.entity.User;
 import com.example.banking_system.enums.CardStatus;
-import com.example.banking_system.enums.CardType;
 import com.example.banking_system.repository.AccountRepository;
 import com.example.banking_system.repository.UserRepository;
 import com.example.banking_system.service.CardService;

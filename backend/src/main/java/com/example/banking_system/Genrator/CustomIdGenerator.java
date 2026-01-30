@@ -1,25 +1,21 @@
 package com.example.banking_system.Genrator;
 
-
-
-import org.springframework.stereotype.Component;
-
 import java.io.Serializable;
 import java.util.Random;
 
+/**
+ * Custom ID generator for creating unique 12-digit account numbers.
+ */
+public class CustomIdGenerator {
 
-public class CustomIdGenerator{
+    private static final Random random = new Random();
 
+    /**
+     * Generate a random 12-digit account number.
+     * @return A 12-digit string representation of the account number
+     */
     public static Serializable generate() {
-        // Generate a random 12-digit number
-        Random random = new Random();
-        long randomNumber = (long) (random.nextDouble() * 1_000_000_000_000L); // 12 digits
-
-        // Ensure it is exactly 12 digits by padding with zeros if needed
+        long randomNumber = (long) (random.nextDouble() * 1_000_000_000_000L);
         return String.format("%012d", randomNumber);
     }
 }
-
-
-
-

@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../../hooks/useAuth';
 import { emiApi } from '../../utils/bankingApi';
+import { getErrorMessage } from '../../utils/apiClient';
 import {
   FiCalendar, FiDollarSign, FiClock, FiCheckCircle, FiAlertCircle,
   FiToggleLeft, FiToggleRight, FiRefreshCw, FiChevronDown, FiChevronUp,
@@ -33,7 +34,7 @@ const EmiManagement = ({ embedded = false }) => {
       const data = await emiApi.getAllLoans(token);
       setLoans(data?.loans || []);
     } catch (err) {
-      setError(err.message || 'Failed to load loans');
+      setError(getErrorMessage(err, 'Failed to load loans'));
     } finally {
       setLoading(false);
     }
@@ -51,7 +52,7 @@ const EmiManagement = ({ embedded = false }) => {
       const data = await emiApi.getSchedule(token, loanId);
       setSchedule(data?.schedule || []);
     } catch (err) {
-      setError(err.message || 'Failed to load EMI schedule');
+      setError(getErrorMessage(err, 'Failed to load EMI schedule'));
     } finally {
       setScheduleLoading(false);
     }

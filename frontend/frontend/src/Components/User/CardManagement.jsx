@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../../hooks/useAuth';
 import { cardApi } from '../../utils/bankingApi';
+import { getErrorMessage } from '../../utils/apiClient';
 import { 
   FiCreditCard, FiLock, FiUnlock, FiSettings, FiPlus, 
   FiGlobe, FiWifi, FiShoppingCart, FiEye, FiEyeOff,
@@ -30,7 +31,7 @@ const CardManagement = ({ embedded = false }) => {
       const data = await cardApi.getAll(token);
       setCards(data || []);
     } catch (err) {
-      setError(err.message || 'Failed to load cards');
+      setError(getErrorMessage(err, 'Failed to load cards'));
     } finally {
       setLoading(false);
     }
@@ -47,7 +48,7 @@ const CardManagement = ({ embedded = false }) => {
       await cardApi.block(token, cardId);
       loadCards();
     } catch (err) {
-      setError(err.message || 'Failed to block card');
+      setError(getErrorMessage(err, 'Failed to block card'));
     }
   };
 
@@ -56,7 +57,7 @@ const CardManagement = ({ embedded = false }) => {
       await cardApi.unblock(token, cardId);
       loadCards();
     } catch (err) {
-      setError(err.message || 'Failed to unblock card');
+      setError(getErrorMessage(err, 'Failed to unblock card'));
     }
   };
 
@@ -83,7 +84,7 @@ const CardManagement = ({ embedded = false }) => {
           });
         }, 30000);
       } catch (err) {
-        setError(err.message || 'Failed to reveal card details');
+        setError(getErrorMessage(err, 'Failed to reveal card details'));
       }
     }
   };
@@ -394,7 +395,7 @@ const IssueCardModal = ({ token, user, onClose, onSuccess }) => {
       }
       onSuccess();
     } catch (err) {
-      setError(err.message || 'Failed to request card');
+      setError(getErrorMessage(err, 'Failed to request card'));
     } finally {
       setLoading(false);
     }
@@ -526,7 +527,7 @@ const CardSettingsModal = ({ card, token, onClose, onSuccess }) => {
       await cardApi.updateSettings(token, card.id, settings);
       onSuccess();
     } catch (err) {
-      setError(err.message || 'Failed to update settings');
+      setError(getErrorMessage(err, 'Failed to update settings'));
     } finally {
       setLoading(false);
     }

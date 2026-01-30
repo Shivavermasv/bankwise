@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { FaEnvelope, FaKey, FaLock, FaCheckCircle, FaArrowLeft, FaUniversity, FaShieldAlt, FaCreditCard, FaChartLine } from "react-icons/fa";
-import { apiFetch } from "../../utils/apiClient";
+import { apiFetch, getErrorMessage } from "../../utils/apiClient";
 
 // Floating Banking Icons Component
 const FloatingIcons = () => {
@@ -93,7 +93,7 @@ const ForgotPasswordPage = () => {
         setError(result.message || "Failed to send reset email.");
       }
     } catch (err) {
-      setError(err.message || "Network error. Please try again.");
+      setError(getErrorMessage(err, "Network error. Please try again."));
     } finally {
       setLoading(false);
     }
@@ -164,7 +164,7 @@ const ForgotPasswordPage = () => {
         }
       }
     } catch (err) {
-      setError(err.message || "Network error. Please try again.");
+      setError(getErrorMessage(err, "Network error. Please try again."));
     } finally {
       setLoading(false);
     }
@@ -189,7 +189,7 @@ const ForgotPasswordPage = () => {
         setError(result.message || "Failed to resend OTP.");
       }
     } catch (err) {
-      setError(err.message || "Network error. Please try again.");
+      setError(getErrorMessage(err, "Network error. Please try again."));
     } finally {
       setLoading(false);
     }

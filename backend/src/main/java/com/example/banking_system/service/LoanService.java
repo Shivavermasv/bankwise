@@ -223,6 +223,162 @@ public class LoanService {
             return "Loan already " + status.name().toLowerCase();
         }
 
+        // Handle loan reversal: If loan was APPROVED/ACTIVE and now being REJECTED/PENDING
+        // We need to debit the loan amount back from the account
+        boolean wasApproved = currentStatus == LoanStatus.APPROVED || currentStatus == LoanStatus.ACTIVE;
+        boolean isBeingRevoked = status == LoanStatus.REJECTED || status == LoanStatus.PENDING;
+        
+        if (wasApproved && isBeingRevoked) {
+            Account freshAccount = accountRepo.findById(accountId)
+                    .orElseThrow(() -> new ResourceNotFoundException("Account not found"));
+            
+            BigDecimal loanAmount = loan.getAmount();
+            BigDecimal currentBalance = freshAccount.getBalance();
+            User accountUser = freshAccount.getUser();
+            String userName = accountUser != null ? accountUser.getName() : "Customer";
+            
+            if (currentBalance.compareTo(loanAmount) < 0) {
+                // Insufficient balance - freeze the account and deduct available balance
+                log.warn("Insufficient balance to fully reverse loan {}. Balance: {}, Loan Amount: {}. Freezing account.", 
+                        loanId, currentBalance, loanAmount);
+                
+                BigDecimal shortfall = loanAmount.subtract(currentBalance);
+                
+                // Deduct whatever balance is available
+                BigDecimal amountDeducted = currentBalance;
+                freshAccount.setBalance(BigDecimal.ZERO);
+                
+                // Freeze the account with proper remarks
+                freshAccount.setVerificationStatus(VerificationStatus.FROZEN);
+                freshAccount.setStatusRemarks("Account frozen due to loan recovery. " +
+                        "Loan #" + loanId + " was " + (status == LoanStatus.REJECTED ? "rejected" : "reverted") + 
+                        ". Outstanding recovery amount: ₹" + shortfall.setScale(2, RoundingMode.HALF_UP) + 
+                        ". Original loan amount: ₹" + loanAmount + ". " +
+                        "Account will be unfrozen once the outstanding amount is deposited.");
+                freshAccount.setPendingRecoveryAmount(shortfall);
+                accountRepo.save(freshAccount);
+                
+                // Record the partial recovery transaction
+                if (amountDeducted.compareTo(BigDecimal.ZERO) > 0) {
+                    Transaction partialRecovery = Transaction.builder()
+                            .sourceAccount(freshAccount)
+                            .amount(amountDeducted)
+                            .type(TransactionType.LOAN_REVERSAL)
+                            .timestamp(LocalDate.now().atStartOfDay())
+                            .status(TransactionStatus.SUCCESS)
+                            .build();
+                    transactionRepository.save(partialRecovery);
+                }
+                
+                log.info("Loan reversal (partial): Debited ₹{} from account {}, shortfall ₹{}, account frozen", 
+                        amountDeducted, accountNumber, shortfall);
+                
+                // Send email notification to user about account freeze
+                String freezeEmailSubject = "Important: Your BankWise Account Has Been Frozen";
+                String freezeEmailBody = String.format(
+                    "Dear %s,\n\n" +
+                    "We regret to inform you that your BankWise account (%s) has been temporarily frozen.\n\n" +
+                    "Reason: Loan Recovery\n" +
+                    "Loan Reference: #%d\n" +
+                    "Loan Status: %s\n\n" +
+                    "Details:\n" +
+                    "- Original Loan Amount: ₹%s\n" +
+                    "- Amount Recovered: ₹%s\n" +
+                    "- Outstanding Balance: ₹%s\n\n" +
+                    "Your account has insufficient funds to cover the loan reversal. " +
+                    "The available balance of ₹%s has been debited towards loan recovery.\n\n" +
+                    "To unfreeze your account:\n" +
+                    "1. Deposit the outstanding amount of ₹%s into your account\n" +
+                    "2. Contact our support team at support@bankwise.com\n" +
+                    "3. Once verified, your account will be restored to normal status\n\n" +
+                    "While your account is frozen:\n" +
+                    "- You cannot make withdrawals or transfers\n" +
+                    "- Any deposits will be applied towards the outstanding recovery amount\n" +
+                    "- Your account details and transaction history remain accessible\n\n" +
+                    "If you believe this is an error or have any questions, please contact our support team immediately.\n\n" +
+                    "Best regards,\n" +
+                    "BankWise Team\n" +
+                    "Email: support@bankwise.com",
+                    userName,
+                    accountNumber,
+                    loanId,
+                    status == LoanStatus.REJECTED ? "Rejected" : "Reverted to Pending",
+                    loanAmount.setScale(2, RoundingMode.HALF_UP),
+                    amountDeducted.setScale(2, RoundingMode.HALF_UP),
+                    shortfall.setScale(2, RoundingMode.HALF_UP),
+                    amountDeducted.setScale(2, RoundingMode.HALF_UP),
+                    shortfall.setScale(2, RoundingMode.HALF_UP)
+                );
+                
+                emailService.sendEmail(userEmail, freezeEmailSubject, freezeEmailBody);
+                
+                // Send in-app notification
+                notificationService.sendNotification(
+                    userEmail,
+                    String.format("⚠️ Account Frozen - Loan Recovery: Your account has been frozen due to loan #%d reversal. " +
+                            "Outstanding recovery: ₹%s. Please deposit funds to unfreeze.", 
+                            loanId, shortfall.setScale(2, RoundingMode.HALF_UP))
+                );
+                
+                auditService.record("LOAN_REVERSAL_PARTIAL", "ACCOUNT", accountNumber, "SUCCESS",
+                        "loanId=" + loanId + " loanAmount=" + loanAmount + " recovered=" + amountDeducted + 
+                        " shortfall=" + shortfall + " accountFrozen=true newStatus=" + status);
+                
+                cacheEvictionService.evictByOperationType("LOAN_REVERSAL", userEmail, accountNumber);
+            } else {
+                // Sufficient balance - debit the full loan amount
+                freshAccount.setBalance(currentBalance.subtract(loanAmount));
+                accountRepo.save(freshAccount);
+                log.info("Loan reversal: Debited ₹{} from account {} for loan {}", loanAmount, accountNumber, loanId);
+                
+                // Record the reversal transaction
+                Transaction reversal = Transaction.builder()
+                        .sourceAccount(freshAccount)
+                        .amount(loanAmount)
+                        .type(TransactionType.LOAN_REVERSAL)
+                        .timestamp(LocalDate.now().atStartOfDay())
+                        .status(TransactionStatus.SUCCESS)
+                        .build();
+                transactionRepository.save(reversal);
+                
+                // Send email confirmation
+                String reversalEmailSubject = "Loan Status Update - BankWise";
+                String reversalEmailBody = String.format(
+                    "Dear %s,\n\n" +
+                    "This is to inform you that your loan application has been updated.\n\n" +
+                    "Loan Reference: #%d\n" +
+                    "New Status: %s\n" +
+                    "Amount: ₹%s\n\n" +
+                    "As per banking regulations, the loan amount of ₹%s has been debited from your account.\n\n" +
+                    "Your updated account balance: ₹%s\n\n" +
+                    "If you have any questions, please contact our support team.\n\n" +
+                    "Best regards,\n" +
+                    "BankWise Team",
+                    userName,
+                    loanId,
+                    status == LoanStatus.REJECTED ? "Rejected" : "Reverted to Pending",
+                    loanAmount.setScale(2, RoundingMode.HALF_UP),
+                    loanAmount.setScale(2, RoundingMode.HALF_UP),
+                    freshAccount.getBalance().setScale(2, RoundingMode.HALF_UP)
+                );
+                
+                emailService.sendEmail(userEmail, reversalEmailSubject, reversalEmailBody);
+                
+                auditService.record("LOAN_REVERSAL", "ACCOUNT", accountNumber, "SUCCESS",
+                        "loanId=" + loanId + " amount=" + loanAmount + " newStatus=" + status);
+                
+                cacheEvictionService.evictByOperationType("LOAN_REVERSAL", userEmail, accountNumber);
+            }
+            
+            // Reset loan EMI fields
+            loan.setApprovalDate(null);
+            loan.setMaturityDate(null);
+            loan.setEmiAmount(null);
+            loan.setNextEmiDate(null);
+            loan.setEmisPaid(0);
+            loan.setRemainingPrincipal(null);
+        }
+
         loan.setStatus(status);
         loan.setAdminRemark(adminRemark);
         if (status == LoanStatus.APPROVED) {
@@ -283,6 +439,16 @@ public class LoanService {
 
     public List<LoanResponseDto> getLoansByStatus(LoanStatus status) {
         return loanRepo.findByStatus(status).stream().map(this::mapToDto).toList();
+    }
+
+    public List<LoanResponseDto> getAllLoans() {
+        return loanRepo.findAllWithAccountAndUser().stream().map(this::mapToDto).toList();
+    }
+
+    public LoanResponseDto getLoanById(Long loanId) throws ResourceNotFoundException {
+        return loanRepo.findByIdWithAccountAndUser(loanId)
+                .map(this::mapToDto)
+                .orElseThrow(() -> new ResourceNotFoundException("Loan not found with ID: " + loanId));
     }
 
     public List<LoanResponseDto> getLoansByAccount(String accountNumber) {

@@ -20,6 +20,10 @@ public interface BeneficiaryRepository extends JpaRepository<Beneficiary, Long> 
 
     boolean existsByUserAndBeneficiaryAccountNumber(User user, String beneficiaryAccountNumber);
 
+    boolean existsByUserAndBeneficiaryAccountNumberAndIsActiveTrue(User user, String beneficiaryAccountNumber);
+
+    Optional<Beneficiary> findByUserAndBeneficiaryAccountNumberAndIsActiveFalse(User user, String beneficiaryAccountNumber);
+
     List<Beneficiary> findByUserAndIsFavoriteTrueAndIsActiveTrue(User user);
 
     @Query("SELECT b FROM Beneficiary b WHERE b.user = ?1 AND b.isActive = true AND " +

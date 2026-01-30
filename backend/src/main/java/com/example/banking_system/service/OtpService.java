@@ -22,7 +22,6 @@ public class OtpService {
 
     private final UserRepository userRepository;
     private final EmailService emailService;
-    private final CachedDataService cachedDataService;
 
     @org.springframework.beans.factory.annotation.Value("${bankwise.dev.skip-otp:false}")
     private boolean skipOtp;

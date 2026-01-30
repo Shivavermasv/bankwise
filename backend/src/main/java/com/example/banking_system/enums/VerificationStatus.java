@@ -4,7 +4,9 @@ public enum VerificationStatus {
     PENDING,
     VERIFIED,
     REJECTED,
-    SUSPENDED, DISABLED
+    SUSPENDED,
+    FROZEN,  // Account frozen due to loan recovery or compliance issues
+    DISABLED
 }
 
 

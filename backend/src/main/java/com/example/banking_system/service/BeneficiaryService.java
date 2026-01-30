@@ -3,9 +3,7 @@ package com.example.banking_system.service;
 import com.example.banking_system.entity.Account;
 import com.example.banking_system.entity.Beneficiary;
 import com.example.banking_system.entity.User;
-import com.example.banking_system.repository.AccountRepository;
 import com.example.banking_system.repository.BeneficiaryRepository;
-import com.example.banking_system.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -21,8 +19,6 @@ import java.util.Optional;
 public class BeneficiaryService {
 
     private final BeneficiaryRepository beneficiaryRepository;
-    private final UserRepository userRepository;
-    private final AccountRepository accountRepository;
     private final CachedDataService cachedDataService;
 
 
@@ -45,9 +41,20 @@ public class BeneficiaryService {
     public Beneficiary addBeneficiary(String userEmail, String beneficiaryAccountNumber, String nickname) {
         User user = cachedDataService.getUserByEmail(userEmail);
 
-        // Check if beneficiary already exists
-        if (beneficiaryRepository.existsByUserAndBeneficiaryAccountNumber(user, beneficiaryAccountNumber)) {
+        // Check if beneficiary already exists and is active
+        if (beneficiaryRepository.existsByUserAndBeneficiaryAccountNumberAndIsActiveTrue(user, beneficiaryAccountNumber)) {
             throw new RuntimeException("Beneficiary already exists");
+        }
+
+        // Check if there's a soft-deleted beneficiary that can be reactivated
+        Optional<Beneficiary> inactiveBeneficiary = beneficiaryRepository
+                .findByUserAndBeneficiaryAccountNumberAndIsActiveFalse(user, beneficiaryAccountNumber);
+        if (inactiveBeneficiary.isPresent()) {
+            Beneficiary existing = inactiveBeneficiary.get();
+            existing.setIsActive(true);
+            existing.setNickname(nickname != null && !nickname.trim().isEmpty() ? nickname.trim() : existing.getNickname());
+            log.info("Reactivating beneficiary {} for user {}", beneficiaryAccountNumber, userEmail);
+            return beneficiaryRepository.save(existing);
         }
 
         // Validate the account exists - use getAccountByNumberForAuth which eagerly fetches user

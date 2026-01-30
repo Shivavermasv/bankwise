@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../../hooks/useAuth';
 import { scheduledPaymentApi, beneficiaryApi } from '../../utils/bankingApi';
+import { getErrorMessage } from '../../utils/apiClient';
 import { 
   FiCalendar, FiClock, FiPlus, FiPlay, FiPause, FiX, 
   FiEdit2, FiRepeat, FiDollarSign, FiUser, FiAlertCircle,
@@ -50,7 +51,7 @@ const ScheduledPayments = ({ embedded = false }) => {
       setPayments(allData || []);
       setUpcomingPayments(upcomingData || []);
     } catch (err) {
-      setError(err.message || 'Failed to load scheduled payments');
+      setError(getErrorMessage(err, 'Failed to load scheduled payments'));
     } finally {
       setLoading(false);
     }
@@ -67,7 +68,7 @@ const ScheduledPayments = ({ embedded = false }) => {
       await scheduledPaymentApi.pause(token, id);
       loadPayments();
     } catch (err) {
-      setError(err.message || 'Failed to pause payment');
+      setError(getErrorMessage(err, 'Failed to pause payment'));
     }
   };
 
@@ -76,7 +77,7 @@ const ScheduledPayments = ({ embedded = false }) => {
       await scheduledPaymentApi.resume(token, id);
       loadPayments();
     } catch (err) {
-      setError(err.message || 'Failed to resume payment');
+      setError(getErrorMessage(err, 'Failed to resume payment'));
     }
   };
 
@@ -86,7 +87,7 @@ const ScheduledPayments = ({ embedded = false }) => {
       await scheduledPaymentApi.cancel(token, id);
       loadPayments();
     } catch (err) {
-      setError(err.message || 'Failed to cancel payment');
+      setError(getErrorMessage(err, 'Failed to cancel payment'));
     }
   };
 
@@ -400,9 +401,7 @@ const SchedulePaymentModal = ({ payment, token, user, onClose, onSuccess }) => {
       }
       onSuccess();
     } catch (err) {
-      // Handle error from backend { error: "..." } or { message: "..." }
-      const errorMessage = err.error || err.message || 'Failed to save scheduled payment';
-      setError(errorMessage);
+      setError(getErrorMessage(err, 'Failed to save scheduled payment'));
       console.error('Scheduled payment error:', err);
     } finally {
       setLoading(false);

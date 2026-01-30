@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../../hooks/useAuth';
 import { analyticsApi } from '../../utils/bankingApi';
+import { getErrorMessage } from '../../utils/apiClient';
 import {
   FiTrendingUp, FiTrendingDown, FiPieChart, FiBarChart2,
   FiDollarSign, FiCreditCard, FiActivity, FiCalendar,
@@ -43,7 +44,7 @@ const UserAnalyticsDashboard = ({ embedded = false }) => {
       setLoans(loansData);
       setDebts(debtsData);
     } catch (err) {
-      setError(err.message || 'Failed to load analytics');
+      setError(getErrorMessage(err, 'Failed to load analytics'));
     } finally {
       setLoading(false);
     }

@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import Navbar from "../Layout/Navbar";
 import { useTheme } from '../../context/ThemeContext.jsx';
 import { listPendingLoans, approveLoan, rejectLoan } from "../../services/loans";
+import { getErrorMessage } from "../../utils/apiClient";
 import { toDisplayString } from "../../utils";
 
 const AdminLoanApproval = () => {
@@ -22,7 +23,7 @@ const AdminLoanApproval = () => {
         const data = await listPendingLoans({ token: user.token });
         setLoans(data || []);
       } catch (err) {
-        setError(err.message || "Error loading loans");
+        setError(getErrorMessage(err, "Error loading loans"));
       } finally {
         setLoading(false);
       }

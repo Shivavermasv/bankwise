@@ -65,6 +65,13 @@ public class Account {
     // Minimum balance requirement
     private BigDecimal minimumBalance = BigDecimal.valueOf(1000);
 
+    // Status remarks for frozen/suspended accounts
+    @Column(length = 500)
+    private String statusRemarks;
+
+    // Outstanding loan recovery amount (when account is frozen)
+    private BigDecimal pendingRecoveryAmount = BigDecimal.ZERO;
+
     public Boolean getOverdraftEnabled() {
         return overdraftEnabled != null ? overdraftEnabled : Boolean.FALSE;
     }

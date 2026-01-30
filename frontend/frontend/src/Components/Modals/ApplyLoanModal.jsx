@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { toDisplayString } from "../../utils";
 import { applyForLoan } from "../../services/loans";
+import { getErrorMessage } from "../../utils/apiClient";
 
 const interestRates = {
   SAVINGS: 10, // percent per annum
@@ -57,7 +58,7 @@ const ApplyLoanModal = ({ user, onClose, onSuccess }) => {
       onSuccess && onSuccess();
       onClose();
     } catch (err) {
-      setError(err.message || "Something went wrong");
+      setError(getErrorMessage(err, "Something went wrong"));
     } finally {
       setLoading(false);
     }

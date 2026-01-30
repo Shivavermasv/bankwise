@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { toDisplayString } from "../../utils";
 import { submitKyc } from "../../services/accounts";
+import { getErrorMessage } from "../../utils/apiClient";
 
 const isFileValid = (file) => {
   if (!file) return false;
@@ -70,7 +71,7 @@ const AccountVerificationModal = ({ user, onClose, onSuccess }) => {
       onSuccess && onSuccess();
       onClose();
     } catch (err) {
-      setError(err.message || "Verification failed");
+      setError(getErrorMessage(err, "Verification failed"));
     } finally {
       setLoading(false);
     }

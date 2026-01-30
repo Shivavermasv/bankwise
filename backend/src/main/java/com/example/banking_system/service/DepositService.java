@@ -17,7 +17,6 @@ import com.example.banking_system.exception.UnauthorizedAccountAccessException;
 import com.example.banking_system.repository.AccountRepository;
 import com.example.banking_system.repository.DepositRepository;
 import com.example.banking_system.repository.TransactionRepository;
-import com.example.banking_system.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
@@ -41,7 +40,6 @@ public class DepositService {
     private final DepositRepository depositRepository;
     private final TransactionRepository transactionRepository;
     private final NotificationService notificationService;
-    private final UserRepository userRepository;
     private final AuditService auditService;
     private final ApplicationEventPublisher eventPublisher;
     private final CachedDataService cachedDataService;

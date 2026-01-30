@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { loginWithCredentials as apiLogin, verifyOtpAndFetchToken as apiVerifyOtp, developerLogin } from "../../utils/authApi";
 import { toDisplayString } from "../../utils";
 import { storeUser, getStoredUser } from "../../utils/auth";
+import { getErrorMessage } from "../../utils/apiClient";
 
 const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -163,7 +164,7 @@ const LoginPage = () => {
           navigate("/developer", { replace: true });
         }
       } catch (err) {
-        setError(err.message || "Developer login failed");
+        setError(getErrorMessage(err, "Developer login failed"));
       }
       return;
     }

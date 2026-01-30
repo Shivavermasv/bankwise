@@ -1,180 +1,311 @@
-# 💳 BankWise – Personal Banking System
+# 🏦 BankWise – Modern Digital Banking Platform
 
-**BankWise** is a secure, modular banking system built with **Spring Boot** and a **React** frontend. It supports KYC verification, deposits, transfers, loan management, and real‑time notifications with role‑based access control.
+<div align="center">
+
+![BankWise](https://img.shields.io/badge/BankWise-Digital%20Banking-blue?style=for-the-badge&logo=bank&logoColor=white)
+![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.3.2-6DB33F?style=flat-square&logo=springboot&logoColor=white)
+![React](https://img.shields.io/badge/React-19-61DAFB?style=flat-square&logo=react&logoColor=black)
+![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-336791?style=flat-square&logo=postgresql&logoColor=white)
+![License](https://img.shields.io/badge/License-MIT-green?style=flat-square)
+
+**A secure, full-featured digital banking platform with real-time notifications, loan management, and comprehensive admin controls.**
+
+[🌐 Live Demo](https://bankwise-production-69d4.up.railway.app/) • [📖 Documentation](DOCUMENTATION.md) • [🏗️ Architecture](docs/ARCHITECTURE.md)
+
+</div>
 
 ---
 
-## ⚙️ Tech Stack
+## ✨ Features
+
+### 💰 Core Banking
+- **Account Management** – Create savings/current accounts with unique 12-digit account numbers
+- **KYC Verification** – Upload Aadhar & PAN documents for admin approval
+- **Fund Transfers** – Secure transfers with transaction PIN verification
+- **Deposit Requests** – Request deposits with admin approval workflow
+- **Transaction History** – Detailed history with PDF export capability
+- **Beneficiary Management** – Save frequent transfer recipients
+
+### 💳 Cards & Payments
+- **Virtual Cards** – Issue debit/credit cards with customizable limits
+- **Card Controls** – Block/unblock, enable international transactions
+- **Scheduled Payments** – Set up recurring transfers (daily, weekly, monthly)
+- **Bill Payments** – Pay utility bills with scheduling options
+
+### 📊 Loans & EMI
+- **Loan Applications** – Apply for loans with instant EMI calculation
+- **EMI Management** – Track payments, enable auto-debit
+- **Repayment History** – View payment schedules and outstanding amounts
+- **Credit Score** – Dynamic scoring based on repayment behavior (±2-25 points)
+
+### 🔔 Real-time Features
+- **WebSocket Notifications** – Instant alerts for transactions
+- **Live Balance Updates** – Real-time account balance sync
+- **Admin Alerts** – Notifications for pending approvals
+
+### 👤 User Dashboard
+- **Analytics Dashboard** – Spending patterns, category breakdowns
+- **Profile Management** – Update personal info and profile photo
+- **Dark/Light Theme** – Customizable UI theme
+
+### 🛡️ Admin Panel
+- **Account Verification** – Approve/reject KYC submissions
+- **Deposit Management** – Process deposit requests
+- **Loan Approvals** – Review and approve loan applications
+- **User Management** – Suspend/activate accounts
+- **System Analytics** – Platform-wide metrics and insights
+
+### 🔧 Developer Console
+- **API Documentation** – Interactive Swagger UI
+- **System Metrics** – Memory, uptime, request statistics
+- **Audit Logs** – Comprehensive activity tracking
+- **Support Tickets** – Manage user support requests
+
+---
+
+## 🛠️ Tech Stack
 
 ### Backend
-- Java 17, Spring Boot 3.3.2
-- Spring Security (OAuth2 Resource Server + JWT)
-- Spring Data JPA (Hibernate) with Batch Processing
-- PostgreSQL (Neon Cloud) / H2 for tests
-- WebSockets (STOMP) for real-time updates
-- JavaMailSender (OTP, PDF receipts)
-- Spring Cache (In-memory caching)
-- Async Processing (ThreadPoolTaskExecutor)
-- Rate Limiting & Request Deduplication
+| Technology | Purpose |
+|------------|---------|
+| Java 17 | Runtime environment |
+| Spring Boot 3.3.2 | Application framework |
+| Spring Security | Authentication & authorization |
+| Spring Data JPA | Database ORM |
+| PostgreSQL | Primary database |
+| Redis | Caching layer |
+| WebSocket/STOMP | Real-time notifications |
+| JWT | Token-based authentication |
+| Brevo (Sendinblue) | Transactional emails |
+| OpenPDF/iText | PDF generation |
 
 ### Frontend
-- React 19 + Vite 7
-- Tailwind CSS + Framer Motion animations
-- Lottie animations for success/error states
-- Smart API client with caching & retry logic
-- WebSocket/STOMP client for notifications
+| Technology | Purpose |
+|------------|---------|
+| React 19 | UI framework |
+| Vite 7 | Build tool |
+| Tailwind CSS | Styling |
+| Framer Motion | Animations |
+| Lottie | Success/error animations |
+| React Router | Navigation |
 
 ---
 
-## 📌 Features
+## 🚀 Quick Start
 
-### Core Banking
-- Role‑based authentication (`USER`, `CUSTOMER`, `MANAGER`, `ADMIN`, `DEVELOPER`)
-- KYC upload and admin approval flow
-- Deposits with admin approval workflow
-- Secure fund transfers with self-transfer prevention
-- Transaction history with PDF export
-- Loan request, EMI calculation, and repayment tracking
+### Prerequisites
+- Java 17+
+- Node.js 18+
+- PostgreSQL 14+ (or use cloud database)
+- Maven 3.8+
 
-### Security & Performance
-- JWT authentication with OTP verification
-- Credit score system (700 default, ±2-25 on payments)
-- Rate limiting (120 requests/min per IP)
-- Request deduplication (prevents duplicate submissions)
-- Response compression (70-80% payload reduction)
-- HTTP/2 support for faster connections
-- Connection pool optimization (HikariCP)
+### Backend Setup
+```bash
+cd backend
 
-### Real-time Features
-- WebSocket notifications for transactions
-- Live balance updates
-- Admin alerts for pending approvals
+# Configure environment
+cp .env.example .env
+# Edit .env with your database, email, and JWT settings
 
-### Admin Dashboard
-- Analytics with charts and metrics
-- Account verification management
-- Loan approval workflow
-- Deposit request processing
-- Interest rate configuration
-- Service health monitoring
+# Run the application
+./mvnw spring-boot:run
+```
 
-### Developer Dashboard
-- System uptime and memory metrics
-- API endpoint performance tracking
-- Database statistics
-- Cache hit/miss rates
-- Request/response analytics
+### Frontend Setup
+```bash
+cd frontend/frontend
 
----
+# Install dependencies
+npm install
 
-## 📚 Documentation
+# Configure environment
+cp .env.example .env
+# Edit .env with API URL
 
-See [DOCUMENTATION.md](DOCUMENTATION.md) for architecture, security, and module details.
+# Start development server
+npm run dev
+```
 
----
+### Environment Variables
 
-## 🧰 Run Locally
+#### Backend (.env)
+```properties
+# Database
+DB_URL=jdbc:postgresql://localhost:5432/bankwise
+DB_USERNAME=postgres
+DB_PASSWORD=your_password
 
-### Backend
-1. Copy `.env.example` to `.env` and configure:
-   ```bash
-   cp backend/.env.example backend/.env
-   ```
-2. Update `.env` with your database, email, and JWT settings
-3. Start PostgreSQL (or use Neon cloud database)
-4. From [backend/](backend):
-   ```bash
-   ./mvnw spring-boot:run
-   ```
+# JWT
+JWT_SECRET=your-256-bit-secret-key
 
-### Frontend
-1. Copy `.env.example` to `.env`:
-   ```bash
-   cp frontend/frontend/.env.example frontend/frontend/.env
-   ```
-2. Update `VITE_API_BASE_URL` if backend is not on localhost:8091
-3. From [frontend/frontend/](frontend/frontend):
-   ```bash
-   npm install
-   npm run dev
-   ```
+# Email (Brevo)
+BREVO_API_KEY=your-brevo-api-key
+
+# CORS
+CORS_ALLOWED_ORIGINS=http://localhost:5173
+```
+
+#### Frontend (.env)
+```properties
+VITE_API_BASE_URL=http://localhost:8091
+```
 
 ---
 
-## 🚀 Production Deployment
-
-### Backend (Docker on Render)
-1. Set environment variables in Render dashboard:
-   - `DB_URL`, `DB_USERNAME`, `DB_PASSWORD` (Neon PostgreSQL)
-   - `MAIL_USERNAME`, `MAIL_PASSWORD` (Gmail SMTP)
-   - `JWT_SECRET` (secure random string)
-   - `CORS_ALLOWED_ORIGINS` (your frontend URL)
-2. Deploy using the included `Dockerfile`
-3. Set up external ping service (UptimeRobot) to hit `/api/system/ping` every 10 min
-
-### Frontend (Netlify)
-1. Update `.env.production` with your Render backend URL
-2. Build: `npm run build`
-3. Deploy `dist/` folder to Netlify
-4. The `_redirects` file handles SPA routing
-
----
-
-## ⚡ Performance Optimizations
-
-| Optimization | Description |
-|--------------|-------------|
-| Response Compression | GZIP compression for JSON (70-80% reduction) |
-| HTTP/2 | Multiplexed connections |
-| Connection Pool | HikariCP with 2-10 connections |
-| Spring Caching | In-memory cache for users, accounts, balances |
-| Async Processing | Background threads for emails, notifications |
-| Rate Limiting | 120 req/min per IP |
-| Request Deduplication | Prevents duplicate in-flight requests |
-| Frontend Caching | 30-second cache with auto-invalidation |
-| Retry Logic | 2 retries with exponential backoff |
-
----
-
-## ✅ Tests
-
-- Backend: `./mvnw clean test`
-- Frontend: `npm run build`
-
----
-
-## 📂 Project Structure
+## 📁 Project Structure
 
 ```
-BankWise/
+bankwise/
 ├── backend/
 │   ├── src/main/java/com/example/banking_system/
-│   │   ├── account/      # Account & deposit management
-│   │   ├── admin/        # Admin dashboard & analytics
-│   │   ├── audit/        # Audit trail logging
-│   │   ├── auth/         # JWT authentication & security
-│   │   ├── config/       # Async, CORS, WebSocket config
-│   │   ├── event/        # Event-driven architecture
-│   │   ├── loan/         # Loan management
-│   │   ├── notification/ # Email & WebSocket notifications
-│   │   ├── support/      # Support tickets
-│   │   └── transaction/  # Transfer & transaction history
-│   └── .env.example
-├── frontend/
-│   └── frontend/
-│       ├── src/
-│       │   ├── Components/
-│       │   ├── hooks/
-│       │   ├── services/
-│       │   └── utils/
-│       ├── .env.example
-│       └── .env.production
-├── DOCUMENTATION.md
-└── README.md
+│   │   ├── config/          # Security, WebSocket, Cache configs
+│   │   ├── controller/      # REST API controllers
+│   │   ├── dto/             # Data transfer objects
+│   │   ├── entity/          # JPA entities
+│   │   ├── enums/           # Status, Role enumerations
+│   │   ├── exception/       # Custom exceptions & handlers
+│   │   ├── repository/      # JPA repositories
+│   │   └── service/         # Business logic
+│   └── src/main/resources/
+│       └── application.properties
+│
+├── frontend/frontend/
+│   ├── src/
+│   │   ├── Components/      # React components
+│   │   │   ├── Admin/       # Admin dashboard components
+│   │   │   ├── Auth/        # Login, Register, Forgot password
+│   │   │   ├── Layout/      # Navbar, Footer
+│   │   │   ├── Modals/      # Dialog components
+│   │   │   └── User/        # User dashboard components
+│   │   ├── context/         # React context providers
+│   │   ├── hooks/           # Custom React hooks
+│   │   ├── services/        # API service functions
+│   │   └── utils/           # Utility functions, API client
+│   └── public/
+│
+└── docs/                    # Additional documentation
 ```
+
+---
+
+## 🔐 Security Features
+
+- **JWT Authentication** – Secure token-based auth with expiration
+- **OTP Verification** – Email-based two-factor authentication
+- **Transaction PIN** – 4-digit PIN for sensitive operations
+- **Rate Limiting** – 120 requests/minute per IP
+- **Request Deduplication** – Prevents duplicate transactions
+- **HTTPS Enforced** – SSL/TLS encryption in production
+- **CORS Protection** – Restricted cross-origin access
+- **Input Validation** – Server-side validation for all inputs
+
+---
+
+## 📊 API Overview
+
+### Authentication
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/create` | POST | Register new user |
+| `/api/verify-otp` | POST | Verify OTP & get token |
+| `/api/password/forgot` | POST | Request password reset |
+
+### Banking Operations
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/transaction/transfer` | POST | Transfer funds |
+| `/api/transaction/transactions` | GET | Transaction history |
+| `/api/loan/apply` | POST | Apply for loan |
+| `/api/emi/loans` | GET | Get active loans |
+
+### Admin
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/admin-dashboard/analytics` | GET | Dashboard metrics |
+| `/api/account/updateAccountStatus/{id}` | PATCH | Update account status |
+| `/api/loan/{id}/approve` | PUT | Approve loan |
+
+📖 **Full API documentation available at:** `/swagger-ui.html`
+
+---
+
+## 🌐 Deployment
+
+### Live Application
+**🔗 [https://bankwise-production-69d4.up.railway.app/](https://bankwise-production-69d4.up.railway.app/)**
+
+### Deployment Platforms
+- **Backend:** Railway (Docker container)
+- **Frontend:** Netlify (Static hosting)
+- **Database:** Neon PostgreSQL (Cloud)
+
+### Docker Deployment
+```bash
+# Backend
+cd backend
+docker build -t bankwise-backend .
+docker run -p 8091:8091 --env-file .env bankwise-backend
+
+# Frontend
+cd frontend/frontend
+npm run build
+# Deploy dist/ folder to any static hosting
+```
+
+---
+
+## 🧪 Testing
+
+```bash
+# Backend tests
+cd backend
+./mvnw test
+
+# Frontend (if tests configured)
+cd frontend/frontend
+npm run test
+```
+
+---
+
+## 📈 Performance Optimizations
+
+- **Response Compression** – GZIP compression (70-80% payload reduction)
+- **HTTP/2 Support** – Multiplexed connections
+- **Connection Pooling** – HikariCP with optimized settings
+- **Query Optimization** – Indexed database queries
+- **Caching** – Redis/In-memory caching for frequent data
+- **Lazy Loading** – JPA lazy fetch for related entities
+- **Async Processing** – Background email/notification processing
+
+---
+
+## 🤝 Contributing
+
+1. Fork the repository
+2. Create your feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
 
 ---
 
 ## 📄 License
 
-This project is licensed under the [MIT License](LICENSE).
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+---
+
+## 👨‍💻 Author
+
+**Shiva Verma**
+
+---
+
+<div align="center">
+
+Made with ❤️ using Spring Boot & React
+
+⭐ Star this repository if you find it helpful!
+
+</div>
